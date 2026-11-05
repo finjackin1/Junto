@@ -1,0 +1,17 @@
+name = "junto-servidor"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+send_metrics = false
+
+[[durable_objects.bindings]]
+name = "CENTRAL"
+class_name = "Central"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Central"]
+
+[vars]
+DISCORD_CLIENT_ID = "1568006165298684017"
+DISCORD_API = "https://discord.com/api/v10"
+REDIRECT_URI = "http://127.0.0.1:53682/callback"

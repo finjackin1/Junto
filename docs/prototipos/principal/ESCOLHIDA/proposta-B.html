@@ -1,0 +1,73 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Junto · B Palco</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+:root{--acento:#FF7A59;--acento-t:#1E0F0A;--fundo:#11131C;--camada1:#1A1D2B;--camada2:#232739;--camada3:#2E3349}
+.topo{height:48px;flex:none;display:flex;align-items:center;padding:0 8px 0 16px;gap:4px}
+.card{position:relative;display:block;width:100%;height:144px;border-radius:16px;overflow:hidden;text-align:left;transition:transform .15s,box-shadow .15s;margin-bottom:8px}
+.card:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.4)}.card:active{transform:scale(.99)}
+.card .veu{position:absolute;inset:0;background:linear-gradient(transparent 25%,rgba(0,0,0,.72))}
+.card .cima{position:absolute;left:12px;right:12px;top:12px;display:flex;justify-content:space-between;align-items:center}
+.card .baixo{position:absolute;left:12px;right:12px;bottom:12px;color:#fff}
+.card .dono{display:flex;gap:8px;align-items:center;font-weight:600;text-shadow:0 1px 3px #0008}
+.card .pega{position:absolute;right:12px;bottom:12px;width:40px;height:40px;border-radius:50%;background:var(--acento);color:var(--acento-t);display:grid;place-items:center;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
+.card:hover .pega,.card:focus-visible .pega{opacity:1;transform:none}
+.tira{display:flex;gap:12px;padding:4px 16px 12px;overflow-x:auto}
+.tira::-webkit-scrollbar{height:0}
+.pess{display:flex;flex-direction:column;align-items:center;gap:4px;width:48px;font-size:12px;line-height:16px;color:var(--t2);flex:none;transition:transform .15s}
+.pess:hover{transform:translateY(-1px)}
+.flut{position:absolute;right:16px;bottom:16px;z-index:6;height:48px;padding:0 20px;border-radius:24px;box-shadow:0 8px 24px rgba(255,122,89,.3)}
+.flut.ativo{background:var(--camada3);color:var(--t1);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.flut-bar{position:absolute;left:8px;right:8px;bottom:8px;height:64px;border-radius:16px;z-index:6;overflow:hidden;display:flex;align-items:center;gap:12px;padding:0 8px;color:#fff;text-align:left;width:calc(100% - 16px);box-shadow:0 8px 24px rgba(0,0,0,.45);transition:transform .15s;animation:sobe .3s both}
+.flut-bar:hover{transform:translateY(-1px)}
+.flut-bar .tinta{position:absolute;inset:0;background:rgba(10,12,20,.55)}
+.flut-bar>*:not(.tinta){position:relative}
+.palco{position:relative;height:320px;flex:none;overflow:hidden}
+.palco .luz{position:absolute;inset:-20%;animation:luz 9s infinite ease-in-out}
+.palco .veu{position:absolute;inset:0;background:linear-gradient(rgba(17,19,28,.1) 40%,var(--fundo))}
+.palco .topo2{position:absolute;left:8px;right:8px;top:0;display:flex;align-items:center;height:48px;color:#fff}
+.palco .topo2 .ibtn{color:#fff}.palco .topo2 .ibtn:hover{background:rgba(255,255,255,.15)}
+.palco .inf{position:absolute;left:16px;right:16px;bottom:8px}
+.ctlb{display:flex;align-items:center;gap:4px;padding:0 16px 12px}
+.ctlb .grande{width:48px;height:48px;border-radius:50%;background:var(--acento);color:var(--acento-t);display:grid;place-items:center;transition:transform .1s;margin:0 8px}
+.ctlb .grande:active{transform:scale(.94)}.ctlb .grande:disabled{background:var(--camada3);color:var(--t3);cursor:not-allowed}
+.flut.desl{background:var(--camada3);color:var(--t3);box-shadow:none;cursor:default}
+.flut.desl:hover{background:var(--camada3);filter:none}
+.semof{height:208px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
+.semof .tit{white-space:normal}
+.tabf{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 4px}
+</style></head><body><div id="raiz"></div>
+<script src="motor.js"></script><script src="sessao-comum.js"></script><script>
+const {ic,av,eq,achar,AMIGOS,S,dica,hms,podeControlar}=M;
+function card(a){return `<button class="card arte a${a.arte}" data-lista data-act="conectar:${a.id}" data-menu="${a.id}" ${dica('Conectar em '+a.nome,'Botão direito: mais opções')}>
+  <span class="veu"></span>
+  <span class="cima"><span class="selo fg">${ic(a.tipo==='ver'?'tela':'fones',14)}${M.tipoNome(a.tipo)}</span>${a.gente.length?`<span class="selo fg">${ic('pessoas',14)}${a.gente.length+1}</span>`:''}</span>
+  <span class="baixo"><span class="dono" style="margin-bottom:4px">${av(a,24,false)}${a.nome}<span style="color:#fff">${eq()}</span></span><span class="corta" style="display:block;font:600 16px/24px 'Segoe UI Variable Display','Segoe UI',sans-serif;padding-right:48px">${a.titulo}</span></span>
+  <span class="pega">${ic('play',18)}</span></button>`}
+function pess(a){return `<button class="pess" data-lista data-act="menu:${a.id}" data-menu="${a.id}" ${dica(a.nome,a.est==='on'?'Online, sem nada disponível':'Offline')}>${av(a,44)}<span class="corta" style="max-width:48px">${a.nome}</span></button>`}
+function bar(){const a=achar(S.conn);return `<button class="flut-bar arte a${a.arte}" data-act="sessao" ${dica('Abrir sessão','Fila, controles e vídeo')}><span class="tinta"></span><span class="mini arte a${a.arte}" style="border-radius:10px"></span><span class="corta" style="flex:1"><span class="corta" style="display:block;font-weight:600">${a.titulo}</span><span class="corta" style="display:block;font-size:12px;line-height:16px;opacity:.8">com ${a.nome}</span></span>${eq(!S.tocando)}<span class="ibtn" style="color:#fff">${ic('cima')}</span></button>`}
+M.iniciar({
+ principal(s){
+  const topo=`<div class="topo"><div class="tit" style="flex:1">Agora</div>${s.conn?`<button class="ibtn" data-act="camada:oferecer" ${dica("Disponibilizar","Escolha o que seus amigos podem ouvir ou ver")}>${ic("mais")}</button>`:""}<button class="ibtn" data-act="camada:amigos" ${dica('Adicionar amigos')}>${ic('add')}</button><button class="ibtn" data-act="camada:opcoes" ${dica('Opções')}>${ic('ajustes')}</button></div>`;
+  const flut=(s.etapa1||!M.D.F.oferta)?`<button class="btn pri flut desl" data-act="noop" ${dica('Disponibilizar','Chega na próxima versão')}>${ic('mais',18)}Disponibilizar</button>`:`<button class="btn pri flut${s.oferecendo?' ativo':''}" data-act="${s.oferecendo?'parar-oferta':'camada:oferecer'}" ${s.oferecendo?dica('Parar de disponibilizar','Quem está conectado volta para a lista'):dica('Disponibilizar','Escolha o que seus amigos podem ouvir ou ver')}>${s.oferecendo?eq()+'Você está disponibilizando':ic('mais',18)+'Disponibilizar'}</button>`;
+  const off=s.offline?`<div style="padding:0 16px 8px"><div class="faixa">${ic('aviso',18)}<span>Sem conexão com o Junto. Tentando de novo…</span></div></div>`:'';
+  if(s.carregando)return `${topo}<div class="centro"><span class="gira" style="color:var(--t3)">${ic('gira',32)}</span></div>`;
+  if(s.vazio)return `${topo}${off}<div class="centro entra"><span style="color:var(--t3)">${ic('pessoas',40)}</span><div class="tit">Ninguém por aqui ainda</div><div class="sub">Adicione um amigo pelo nome de usuário do Discord.</div><button class="btn pri" data-act="camada:amigos" ${dica('Adicionar amigos')}>${ic('add',18)}Adicionar amigos</button></div>${flut}`;
+  const of=s.semOf?[]:AMIGOS.filter(a=>a.tipo),res=AMIGOS.filter(a=>s.semOf||!a.tipo);
+  return `${topo}${off}<div class="rola entra" style="padding-bottom:88px"><div style="padding:0 16px">${of.length?of.map(card).join(''):`<div class="semof"><span style="color:var(--t3)">${ic('fones',32)}</span><div class="tit">Ninguém disponibilizando agora</div><div class="sub">Quando um amigo disponibilizar algo, aparece aqui.</div></div>`}</div>
+   <div class="sec" style="padding-top:8px"><span>Sem nada agora</span><span>${res.length}</span></div><div class="tira">${res.map(pess).join('')}</div></div>${s.conn?bar():flut}`},
+ sessao(s){const a=achar(s.conn),c=podeControlar();
+  return `<div class="rola" style="display:flex;flex-direction:column"><div class="palco"><div class="luz arte a${a.arte}"></div><div class="veu"></div>
+    <div class="topo2"><button class="ibtn" data-act="inicio" ${dica('Ver amigos','O som continua. Esc')}>${ic('baixo')}</button><span class="corta" style="flex:1;font-weight:600;text-align:center">Com ${a.nome}</span><button class="ibtn" data-act="desconectar" ${dica('Sair da sessão','Para de tocar no seu PC')}>${ic('sair')}</button></div>
+    <div class="inf"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;--gente-b:transparent">${M.gente(a)}${M.seloModo(a)}</div><div class="tit" style="font-size:24px;line-height:32px;white-space:normal">${a.titulo}</div><div class="sub corta">${a.sub}</div></div></div>
+   <div class="entra" style="flex:1;display:flex;flex-direction:column">
+   <div style="padding:8px 16px 8px"><div class="barra-p"><i data-pos style="width:${s.pos/a.dur*100}%;background:var(--acento)"></i></div><div class="tempo"><span data-t1>${hms(s.pos)}</span><span>${hms(a.dur)}</span></div></div>
+   <div class="ctlb"><button class="ibtn" ${c?'':'disabled'} data-act="voltar" ${dica('Voltar')}>${ic('ant')}</button><button class="grande" ${c?'':'disabled'} data-act="tocar" ${dica(s.tocando?'Pausar':'Tocar',c?'Espaço':'Só o dono controla')}>${ic(s.tocando?'pausa':'play',22)}</button><button class="ibtn" ${c?'':'disabled'} data-act="pular" ${dica('Próxima')}>${ic('prox')}</button><span style="flex:1"></span>
+    ${a.tipo==='ver'?`<button class="btn" style="height:36px;padding:0 12px" data-act="ver-video" ${dica('Abrir vídeo','Abre em outra janela')}>${ic('tela',16)}Ver</button>`:`<span class="selo">${ic('fones',14)}Só som</span>`}
+    <button class="ibtn" data-act="noop" ${dica('Volume')}>${ic('som')}</button></div>
+   ${M.faixaEstado()?`<div style="padding:0 16px 8px">${M.faixaEstado()}</div>`:''}
+   <div class="tabf"><b style="font-weight:600">Fila</b><span class="fra">${a.fila.length}</span></div>${M.linhasFila(a)}
+   <div style="padding:12px 16px">${M.adicionar()}</div></div></div>`},
+ agir(c){if(c==='ver-video')S.tela='video'},
+ esc(s){s.tela='principal'}
+});
+</script></body></html>

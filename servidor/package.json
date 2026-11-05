@@ -1,0 +1,14 @@
+{
+  "name": "junto-servidor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-timeout=120000 teste/integracao.test.js",
+    "dev": "wrangler dev --local"
+  },
+  "devDependencies": {
+    "wrangler": "^4",
+    "ws": "^8"
+  }
+}

@@ -1,0 +1,14 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Junto: vídeo</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font:14px 'Segoe UI',sans-serif;color:#F2F4FA}
+video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+#cab{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(#000a,#0000);opacity:0;transition:opacity .2s}
+body:hover #cab{opacity:1}
+#tit{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#x{border:0;border-radius:8px;width:32px;height:32px;background:#0008;color:#fff;font-size:16px;cursor:pointer}
+#x:hover{background:#FF6B6B}
+</style></head><body>
+<video id="v" muted playsinline></video>
+<div id="cab"><span id="tit"></span><button id="x" title="Fechar vídeo (Esc)" aria-label="Fechar vídeo">✕</button></div>
+<script src="sincronia.js"></script><script src="video.js"></script>
+</body></html>

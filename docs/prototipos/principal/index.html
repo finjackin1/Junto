@@ -1,0 +1,28 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Junto · 3 propostas</title>
+<style>
+*{box-sizing:border-box;margin:0}html,body{height:100%}
+body{background:#0A0B10;color:#F2F4FA;font:400 14px/20px "Segoe UI Variable Text","Segoe UI",sans-serif;display:flex;flex-direction:column;overflow:auto}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#2B3041;border-radius:3px}::-webkit-scrollbar-track{background:transparent}
+header{padding:12px 24px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+header b{font-weight:600;margin-right:12px}
+header button{height:28px;padding:0 10px;border-radius:14px;background:#191C27;border:1px solid rgba(255,255,255,.07);color:#AEB4C6;font:inherit;font-size:13px;cursor:pointer;transition:background .15s,color .15s}
+header button:hover{background:#2B3041;color:#fff}header button.sel{background:#F2F4FA;color:#10121A}
+main{display:flex;gap:24px;padding:0 24px 24px;justify-content:center;min-width:max-content}
+section h2{font:600 16px/24px "Segoe UI Variable Display","Segoe UI",sans-serif}
+section p{color:#AEB4C6;font-size:13px;margin-bottom:8px;width:400px;height:40px}
+section a{color:inherit}
+iframe{width:400px;height:712px;border:1px solid rgba(255,255,255,.13);border-radius:8px;display:block;background:#12141C}
+</style></head><body>
+<header><b>Tela:</b><span id="cenas" style="display:contents"></span></header>
+<main>
+<section><h2><a href="proposta-A.html">A. Lista</a></h2><p>A mais familiar. Lista de amigos como no Discord, e a sessão abre numa tela própria.</p><iframe id="fa" src="proposta-A.html#principal"></iframe></section>
+<section><h2><a href="proposta-B.html">B. Palco (recomendada)</a></h2><p>O que está tocando vira o destaque. Você vê as capas, conecta num clique e navega sem largar o som.</p><iframe id="fb" src="proposta-B.html#principal"></iframe></section>
+<section><h2><a href="proposta-C.html">C. Sintonia</a></h2><p>Cada amigo é uma estação de rádio. Você troca com as setas e ouve o que está no ar.</p><iframe id="fc" src="proposta-C.html#principal"></iframe></section>
+</main>
+<script>
+const C=[['principal','Principal'],['login','Entrada'],['entrando','Entrando'],['erro-login','Erro na entrada'],['vazio','Lista vazia'],['menu','Menu do amigo'],['aviso','Aviso de amigo'],['oferecer','Disponibilizar'],['oferecendo','Disponibilizando'],['amigos','Adicionar amigos'],['pedido','Pedido enviado'],['opcoes','Opções'],['sessao','Conectado'],['sem-controle','Só o dono'],['so-fila','Só adiciona'],['esperando','Esperando alguém'],['erro-link','Link falhou'],['sem-conexao','Conexão perdida'],['enviando','Recebendo arquivo'],['video','Vídeo']];
+const box=document.getElementById('cenas');
+function ir(id){['a','b','c'].forEach(p=>{document.getElementById('f'+p).src=`proposta-${p.toUpperCase()}.html#${id}`});box.querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.c===id))}
+C.forEach(([id,n])=>{const b=document.createElement('button');b.textContent=n;b.dataset.c=id;b.onclick=()=>ir(id);box.appendChild(b)});
+ir('principal');
+</script></body></html>

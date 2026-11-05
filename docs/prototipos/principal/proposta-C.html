@@ -1,0 +1,55 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Junto · C Sintonia</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+:root{--acento:#5DE1C0;--acento-t:#06201A;--fundo:#0E1417;--camada1:#161E22;--camada2:#1F2A2F;--camada3:#2A373D}
+.estacao{flex:1;min-height:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 24px;text-align:center;gap:8px}
+.disco{width:208px;height:208px;border-radius:50%;position:relative;margin-bottom:12px;box-shadow:0 16px 48px rgba(0,0,0,.5);transition:transform .2s;display:block}
+.disco:hover{transform:scale(1.02)}.disco:active{transform:scale(.98)}
+.disco.gira-d{animation:giro 16s linear infinite}
+.disco:before{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,transparent 0 6px,rgba(0,0,0,.08) 6px 7px);z-index:1}
+.disco .fur{position:absolute;left:50%;top:50%;width:32px;height:32px;margin:-16px;border-radius:50%;background:var(--fundo);z-index:2;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
+.dial-area{height:124px;flex:none;position:relative;overflow:hidden}
+.dial-area:before{content:"";position:absolute;left:50%;top:0;width:2px;height:12px;background:var(--acento);margin-left:-1px;border-radius:1px;z-index:2}
+.dial{display:flex;gap:16px;position:absolute;left:50%;top:20px;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.est{width:64px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;color:var(--t3);flex:none;opacity:.6;transition:opacity .2s,color .2s,transform .2s;transform:scale(.85)}
+.est.on{opacity:1;color:var(--t1);transform:none}
+.est .tip{display:flex;height:16px;align-items:center;color:var(--acento)}
+.rodc{height:56px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px;border-top:1px solid var(--borda)}
+.ctlc{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px}
+.ctlc .grande{width:48px;height:48px;border-radius:50%;background:var(--acento);color:var(--acento-t);display:grid;place-items:center;transition:transform .1s}
+.ctlc .grande:active{transform:scale(.94)}.ctlc .grande:disabled{background:var(--camada3);color:var(--t3);cursor:not-allowed}
+.sint{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:16px;background:rgba(93,225,192,.14);color:var(--acento);font-weight:600;font-size:13px}
+</style></head><body><div id="raiz"></div>
+<script src="motor.js"></script><script src="sessao-comum.js"></script><script>
+const {ic,av,eq,achar,AMIGOS,S,dica,hms,podeControlar}=M;
+const lista=()=>AMIGOS.filter(a=>a.tipo).concat(AMIGOS.filter(a=>!a.tipo&&a.est==='on'),AMIGOS.filter(a=>a.est==='off'));
+function dial(){const l=lista(),i=S.sel||0;return `<div class="dial-area"><div class="dial" style="transform:translateX(${-32-i*80}px)">${l.map((a,n)=>`<button class="est${n===i?' on':''}" data-lista data-act="sel:${n}" data-menu="${a.id}" ${dica(a.nome,'Clique: sintonizar · ← → troca · Botão direito: mais opções')}>${av(a,48)}<span class="corta" style="max-width:64px">${a.nome}</span><span class="tip">${a.tipo?ic(a.tipo==='ver'?'tela':'fones',14):''}</span></button>`).join('')}</div></div>`}
+function rodc(s){return `<div class="rodc"><button class="ibtn" data-act="camada:amigos" ${dica('Adicionar amigos')}>${ic('add')}</button><span style="flex:1;text-align:center">
+  <button class="btn ${s.oferecendo?'':'pri'}" style="height:36px" data-act="${s.oferecendo?'parar-oferta':'camada:oferecer'}" ${s.oferecendo?dica('Parar de disponibilizar','Quem está conectado volta para a lista'):dica('Disponibilizar','Escolha o que seus amigos podem ouvir ou ver')}>${s.oferecendo?eq()+'Na sua estação':ic('mais',16)+'Disponibilizar'}</button></span>
+  <button class="ibtn" data-act="camada:opcoes" ${dica('Opções')}>${ic('ajustes')}</button></div>`}
+function telaEst(s){const l=lista(),a=l[s.sel||0];
+  if(!a.tipo)return `<div class="estacao entra"><div class="disco" style="background:var(--camada2);opacity:.5"><span class="fur"></span></div><div class="tit">${a.nome}</div><div class="sub">${a.est==='on'?'Sem nada no ar agora':'Offline'}</div><button class="btn" style="margin-top:8px" data-act="noop" ${dica('Avisar','Um aviso aparece quando '+a.nome+' disponibilizar')}>${ic('sino',16)}Me avise</button></div>`;
+  const con=s.conn===a.id,c=podeControlar();
+  return `<div class="estacao entra" style="gap:4px"><button class="disco arte a${a.arte}${con&&s.tocando?' gira-d':''}" data-act="${con?'tocar':'conectar:'+a.id}" ${dica(con?(s.tocando?'Pausar':'Tocar'):'Sintonizar em '+a.nome)}><span class="fur"></span></button>
+   <div class="tit corta" style="max-width:100%">${a.titulo}</div><div class="sub corta" style="max-width:100%">${a.sub} · ${a.nome}</div>
+   ${con?`<div style="width:100%;margin-top:8px"><div class="barra-p"><i data-pos style="width:${s.pos/a.dur*100}%;background:var(--acento)"></i></div><div class="tempo"><span data-t1>${hms(s.pos)}</span><span>${hms(a.dur)}</span></div></div>
+    <div class="ctlc"><button class="ibtn" data-act="camada:p:fila" ${dica('Fila','Ver e adicionar')}>${ic('fila')}</button><button class="ibtn" ${c?'':'disabled'} data-act="noop" ${dica('Voltar')}>${ic('ant')}</button><button class="grande" ${c?'':'disabled'} data-act="tocar" ${dica(s.tocando?'Pausar':'Tocar',c?'Espaço':'Só o dono controla')}>${ic(s.tocando?'pausa':'play',22)}</button><button class="ibtn" ${c?'':'disabled'} data-act="noop" ${dica('Próxima')}>${ic('prox')}</button>${a.tipo==='ver'?`<button class="ibtn" data-act="ver-video" ${dica('Abrir vídeo','Abre em outra janela')}>${ic('tela')}</button>`:`<button class="ibtn" data-act="noop" ${dica('Volume')}>${ic('som')}</button>`}</div>`
+    :`<button class="btn pri" style="margin-top:12px" data-act="conectar:${a.id}" ${dica('Sintonizar em '+a.nome)}>${ic(a.tipo==='ver'?'tela':'fones',18)}Sintonizar</button><div style="margin-top:8px">${M.seloModo(a)}</div>`}
+   </div>`}
+M.iniciar({
+ principal(s){
+  if(s.vazio)return `<div class="centro entra"><span style="color:var(--t3)">${ic('pessoas',40)}</span><div class="tit">Nenhuma estação ainda</div><div class="sub">Cada amigo que você adiciona vira uma estação.</div><button class="btn pri" data-act="camada:amigos" ${dica('Adicionar amigos')}>${ic('add',18)}Adicionar amigos</button></div>${rodc(s)}`;
+  return `${telaEst(s)}${dial()}${rodc(s)}`},
+ sessao(s){
+  const l=lista();const i=l.findIndex(a=>a.id===s.conn);if(i>=0)s.sel=i;const a=achar(s.conn);
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;height:44px;flex:none"><span class="sint">${eq(!s.tocando)}Sintonizado em ${a.nome}</span><button class="ibtn" data-act="desconectar" ${dica('Sair da sessão','Para de tocar no seu PC')}>${ic('sair')}</button></div>
+  ${M.faixaEstado()?`<div style="padding:0 16px">${M.faixaEstado()}</div>`:''}${telaEst(s)}${dial()}${rodc(s)}`},
+ folhaFila(s){const a=achar(s.conn);return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Fila de ${a.nome}</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
+   <div class="mio" style="padding:0"><div style="padding:0 16px 8px">${M.seloModo(a)}</div>${M.linhasFila(a)}<div style="padding:12px 16px 16px">${M.adicionar()}</div></div></div>`},
+ agir(c,v){if(c==='ver-video')S.tela='video'},
+ tecla(e,s){if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=lista().length;s.sel=Math.max(0,Math.min(n-1,(s.sel||0)+(e.key==='ArrowRight'?1:-1)));return true}return false},
+ esc(s){s.conn=null;s.tela='principal'}
+});
+// 'sel' também sintoniza em quem tem algo disponível: mudar de estação troca o que você ouve
+const agirO=M.agir;
+</script></body></html>

@@ -1,0 +1,11 @@
+O Junto usa e distribui estes componentes de terceiros:
+
+Electron (https://www.electronjs.org) - Licença MIT. Inclui o Chromium e o Node.js;
+  as licenças deles vêm no arquivo LICENSES.chromium.html, junto do Junto.exe.
+ws (https://github.com/websockets/ws) - Licença MIT.
+yt-dlp (https://github.com/yt-dlp/yt-dlp) - The Unlicense (domínio público).
+  Vai como yt-dlp.exe na pasta resources e se atualiza sozinho.
+
+Usados só para compilar (não vão no programa):
+@electron/packager - Licença BSD-2-Clause.
+wrangler (Cloudflare) - Licença MIT OU Apache-2.0.

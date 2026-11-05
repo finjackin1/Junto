@@ -1,0 +1,19 @@
+{
+  "name": "junto",
+  "productName": "Junto",
+  "version": "0.1.0",
+  "description": "Junto: ouvir e assistir midia sincronizada com amigos",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"teste/*.test.js\""
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.0.0"
+  }
+}
