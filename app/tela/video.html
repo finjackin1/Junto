@@ -5,10 +5,12 @@ video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
 #cab{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(#000a,#0000);opacity:0;transition:opacity .2s}
 body:hover #cab{opacity:1}
 #tit{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#x{border:0;border-radius:8px;width:32px;height:32px;background:#0008;color:#fff;font-size:16px;cursor:pointer}
+#x,#tc{border:0;border-radius:8px;width:32px;height:32px;background:#0008;color:#fff;font-size:16px;cursor:pointer}
 #x:hover{background:#FF6B6B}
+#tc:hover{background:#fff3}
+#tc svg{display:block;margin:auto}
 </style></head><body>
 <video id="v" muted playsinline></video>
-<div id="cab"><span id="tit"></span><button id="x" title="Fechar vídeo (Esc)" aria-label="Fechar vídeo">✕</button></div>
+<div id="cab"><span id="tit"></span><button id="tc" title="Tela cheia (F ou clique duplo)" aria-label="Tela cheia"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button><button id="x" title="Fechar vídeo (Esc)" aria-label="Fechar vídeo">✕</button></div>
 <script src="sincronia.js"></script><script src="video.js"></script>
 </body></html>

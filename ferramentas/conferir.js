@@ -5,7 +5,7 @@ app.commandLine.appendSwitch('mute-audio'); // never make sound
 const path = require('path');
 const raiz = path.resolve(__dirname, '..');
 const LIM = 99.5, TOL = 24;
-const cenas = ['login', 'entrando', 'erro-login', 'vazio', 'principal', 'carregando', 'sem-ofertas', 'sem-internet', 'etapa1', 'pedido-erro', 'menu', 'aviso', 'oferecer', 'oferecendo', 'amigos', 'pedido', 'opcoes', 'sessao', 'sem-controle', 'so-fila', 'esperando', 'erro-link', 'sem-conexao', 'enviando', 'video'];
+const cenas = ['login', 'entrando', 'erro-login', 'vazio', 'principal', 'carregando', 'sem-ofertas', 'sem-internet', 'etapa1', 'pedido-erro', 'menu', 'aviso', 'oferecer', 'oferecendo', 'amigos', 'pedido', 'opcoes', 'sessao', 'sem-controle', 'so-fila', 'esperando', 'erro-link', 'sem-conexao', 'enviando', 'video', 'sessao-offline', 'remover', 'sua-sessao', 'fila-vazia', 'erro-aviso'];
 app.disableHardwareAcceleration();
 app.on('window-all-closed', () => { }); // windows are shot one at a time; the default would quit the app after the first
 app.setPath('userData', path.join(app.getPath('temp'), 'junto-conferir'));

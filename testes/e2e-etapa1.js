@@ -216,6 +216,8 @@ const entrar = async (A, n) => { await A.p.click('[data-act="entrar"]'); return 
   await A2.p.waitForSelector('.menu');
   await foto(A2.p, 'menu');
   await A2.p.click('[data-act^="remover:"]');
+  conf('remover pede segundo clique', await A2.p.evaluate(() => M.AMIGOS.length === 1 && /Clique de novo/.test(document.querySelector('[data-act^="remover:"]').textContent)));
+  await A2.p.click('[data-act^="remover:"]');
   await ate('remover amigo volta a vazio', () => A2.p.evaluate(() => M.AMIGOS.length === 0 && M.S.vazio));
 
   // 8. close button, sair

@@ -20,10 +20,21 @@
   setInterval(() => { if (pronto) sinc.passo(); }, 250);
 
   document.getElementById('x').addEventListener('click', e => { e.stopPropagation(); J.acao('fechar'); });
-  v.addEventListener('click', () => J.acao('tocar'));
+  let timerClique = null, cheia = false;
+  const telaCheia = () => { clearTimeout(timerClique); J.acao('telacheia'); };
+  const tc = document.getElementById('tc');
+  tc.addEventListener('click', e => { e.stopPropagation(); telaCheia(); });
+  J.aoTelaCheia(f => {
+    cheia = f; document.body.classList.toggle('cheia', f);
+    tc.title = f ? 'Sair da tela cheia (F ou Esc)' : 'Tela cheia (F ou clique duplo)';
+    tc.setAttribute('aria-label', f ? 'Sair da tela cheia' : 'Tela cheia');
+  });
+  // Single click = play/pause, double click = fullscreen; wait so a double click doesn't toggle play twice.
+  v.addEventListener('click', () => { clearTimeout(timerClique); timerClique = setTimeout(() => J.acao('tocar'), 250); });
+  v.addEventListener('dblclick', () => { clearTimeout(timerClique); telaCheia(); });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') J.acao('fechar');
+    if (e.key === 'Escape') { if (cheia) telaCheia(); else J.acao('fechar'); }
     else if (e.key === ' ') { e.preventDefault(); J.acao('tocar'); }
-    else if (e.key === 'f' || e.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+    else if (e.key === 'f' || e.key === 'F') telaCheia();
   });
 })();

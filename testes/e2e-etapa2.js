@@ -209,7 +209,7 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await ate('Ana na propria sessao', () => A.p.evaluate(() => M.S.tela === 'sessao' && M.S.conn === 'eu'));
   conf('titulo da sessao propria: Sua sessao', await A.p.evaluate(() => document.querySelector('.topo2 .corta').textContent === 'Sua sessão'), await texto(A.p, '.topo2 .corta'));
   conf('selo mostra o modo real', (await texto(A.p, '.inf .selo')) === 'Todos controlam', await texto(A.p, '.inf .selo'));
-  conf('controles ligados para o dono', await A.p.evaluate(() => !document.querySelector('[data-act="tocar"]').disabled));
+  conf('fila vazia: Nada tocando e controles desligados', await A.p.evaluate(() => document.querySelector('[data-act="tocar"]').disabled && /Nada tocando/.test(document.querySelector('.inf .tit').textContent)), await texto(A.p, '.inf .tit'));
   await ate('Beto ve o cartao', () => B.p.evaluate(() => !!document.querySelector('.card')));
   await ate('Beto recebeu aviso de oferta', () => /aviso: teste .*Ana Souza disponibilizou/.test(logDe(B)));
   conf('Ana nao se avisa da propria oferta', !/aviso: teste/.test(logDe(A)));
@@ -225,7 +225,7 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await ate('texto que nao e link avisa', () => B.p.evaluate(() => /não é um link/.test((document.querySelector('.faixa.erro') || {}).textContent || '')));
   conf('texto invalido continua no campo', await B.p.evaluate(c => document.querySelector(c).value === 'nao e link', CAMPO));
   await adicionar(B, 'http://fake.test/privado/1');
-  await ate('faixa sem permissao em quem adicionou', () => B.p.evaluate(() => /Sem permissão/.test((document.querySelector('.faixa.erro') || {}).textContent || '')));
+  await ate('faixa sem permissao em quem adicionou', () => B.p.evaluate(() => /não deixou abrir/.test((document.querySelector('.faixa.erro') || {}).textContent || '')));
   await foto(B.p, 'sem-permissao');
   conf('link sem permissao nao entrou na fila', (await filaDe(A.p)).length === 0, await filaDe(A.p));
   await A.p.fill(CAMPO, 'http://fake.test/faixa/1'); await A.p.click('button[data-act="add-link"]');
@@ -344,6 +344,12 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
     // video window pause button reaches the session (modo todos)
     await V.evaluate(() => document.getElementById('v').click());
     await ate('clique no video pausa a sessao', () => A.p.evaluate(() => M.S.tocando === false));
+    await V.click('#tc', { force: true });
+    await ate('botao de tela cheia liga', () => B.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isFullScreen())));
+    await V.keyboard.press('Escape');
+    await ate('Esc sai da tela cheia sem fechar', () => B.app.evaluate(({ BrowserWindow }) => !BrowserWindow.getAllWindows().some(w => w.isFullScreen())));
+    conf('janela de video segue aberta', B.app.windows().some(w => /video\.html/.test(w.url())));
+    await V.waitForTimeout(500);
     await V.keyboard.press('Escape').catch(() => { }); // the window closes under the key press
     await ate('Esc fecha a janela de video', () => B.app.windows().every(w => !/video\.html/.test(w.url())), 8000);
   }

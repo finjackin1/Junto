@@ -64,8 +64,9 @@ function enviarVideo(canal, dado) {
   if (videoJanela && !videoJanela.isDestroyed() && !videoJanela.webContents.isDestroyed()) videoJanela.webContents.send(canal, dado);
 }
 
+let fechandoVideo = false; // closed by the program (session ended, item without video): do not pop the main window
 function fecharVideo() {
-  if (videoJanela && !videoJanela.isDestroyed()) videoJanela.close();
+  if (videoJanela && !videoJanela.isDestroyed()) { fechandoVideo = true; videoJanela.close(); }
 }
 
 // Separate 16:9 window for the video element. Same security settings as the main window; Esc or close returns to it.
@@ -91,7 +92,7 @@ function abrirVideo() {
   };
   if (oculto) { opts.x = -3000; opts.y = -3000; opts.skipTaskbar = true; }
   const v = new BrowserWindow(opts);
-  videoJanela = v;
+  videoJanela = v; fechandoVideo = false;
   v.setMenu(null);
   v.setAspectRatio(16 / 9);
   const wc = v.webContents;
@@ -103,8 +104,15 @@ function abrirVideo() {
     enviarVideo('junto:offset', ultOffset);
     if (videoDados) enviarVideo('junto:video-dados', videoDados);
   });
+  // Native window fullscreen (HTML requestFullscreen crashed the renderer); the page only learns the state.
+  v.on('enter-full-screen', () => enviarVideo('junto:tela-cheia', true));
+  v.on('leave-full-screen', () => enviarVideo('junto:tela-cheia', false));
   v.once('ready-to-show', () => { if (oculto) v.showInactive(); else v.show(); });
-  v.on('closed', () => { if (videoJanela === v) videoJanela = null; if (!saindo) mostrar(); });
+  v.on('closed', () => {
+    const peloPrograma = fechandoVideo; fechandoVideo = false;
+    if (videoJanela === v) videoJanela = null;
+    if (!saindo && !peloPrograma) mostrar(); // user closed it (X / Alt+F4): back to the main window
+  });
   v.loadFile(VIDEO);
 }
 
@@ -148,7 +156,8 @@ function criarJanela() {
   // A 401 can arrive before the screen has loaded; the screen would then wait forever on "carregando".
   wc.on('did-finish-load', () => { if (cliente) cliente.reenviar(); if (sessaoFimPendente) enviarTela('junto:sessao-fim'); enviarTela('junto:offset', ultOffset); });
 
-  janela.once('ready-to-show', () => { if (oculto) janela.showInactive(); else if (!naBandeja) janela.show(); });
+  // Started minimized but logged out: the tray alone would hide the login, so show the window.
+  janela.once('ready-to-show', () => { if (oculto) janela.showInactive(); else if (!naBandeja || !(sessao && sessao.token())) janela.show(); });
   // Alt+F4 and the like hide to the tray; only "sair" really quits.
   janela.on('close', (e) => { if (!saindo) { e.preventDefault(); janela.hide(); } });
   // Windows shutdown/logoff: before-quit is not emitted, and hiding to the tray would block it.
@@ -195,7 +204,7 @@ function iniciarCliente() {
     aoConexao: (c) => enviarTela('junto:conexao', c),
     aoSessao: (m) => { emSessao = !m.fim; enviarTela('junto:sessao', m); },
     aoOffset: (o) => { ultOffset = o; enviarTela('junto:offset', o); enviarVideo('junto:offset', o); },
-    aoSessaoFim: () => { sessao.apagar(); sessaoFimPendente = true; enviarTela('junto:sessao-fim'); },
+    aoSessaoFim: () => { emSessao = false; sessao.apagar(); sessaoFimPendente = true; enviarTela('junto:sessao-fim'); },
     log,
   });
   cliente.iniciar();
@@ -226,6 +235,7 @@ function registrarIpc() {
   ipcMain.handle('junto:sair', async (ev) => {
     if (!remetenteOk(ev)) return;
     if (cliente) cliente.parar();
+    emSessao = false;
     await sessao.sair();
   });
 
@@ -263,8 +273,9 @@ function registrarIpc() {
   });
   ipcMain.on('junto:video-acao', (ev, a) => {
     if (!remetenteVideoOk(ev)) return;
-    if (a === 'fechar') fecharVideo();
+    if (a === 'fechar') { if (videoJanela && !videoJanela.isDestroyed()) videoJanela.close(); } // user's Esc/close: main window comes back
     else if (a === 'tocar') enviarTela('junto:video-acao', 'tocar');
+    else if (a === 'telacheia' && videoJanela && !videoJanela.isDestroyed()) videoJanela.setFullScreen(!videoJanela.isFullScreen());
   });
 
   ipcMain.on('junto:janela', (ev, acao) => {
@@ -337,6 +348,7 @@ if (!app.requestSingleInstanceLock()) {
     if (sessao.token()) iniciarCliente();
     atualizacao = criarAtualizacao({
       atual: app.getVersion(), log, emSessao: () => emSessao, sair: () => app.quit(),
+      minimizado: () => !janela || janela.isDestroyed() || (!janela.isVisible() && !janela.isMinimized()), // in the tray, not on the taskbar
       ativo: app.isPackaged || !!env.JUNTO_TESTE_ATUALIZACAO,
     });
     atualizacao.iniciar();

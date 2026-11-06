@@ -33,3 +33,7 @@
 .semof{height:208px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center}
 .semof .tit{white-space:normal}
 .tabf{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 4px}
+.vol{-webkit-appearance:none;appearance:none;width:72px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--t2) var(--v,100%),var(--camada3) var(--v,100%));cursor:pointer;margin:0 4px 0 0}
+.vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--t1);border:0}
+.vol:focus-visible{outline:2px solid var(--acento);outline-offset:4px}
+.ctlb .btn:disabled{opacity:.5;cursor:not-allowed}

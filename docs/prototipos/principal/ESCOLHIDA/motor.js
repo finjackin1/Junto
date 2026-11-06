@@ -75,7 +75,7 @@ function folhaOferecer(){const a=S.ofTipo,m=S.ofModo;return `<div class="vela" d
  <div style="display:grid;gap:8px;margin-bottom:16px">
   ${Object.keys(MODOS).map(k=>`<button class="opcao${m===k?' sel':''}" data-act="ofmodo:${k}" ${dica(MODOS[k][0],MODOS[k][1])}><span class="ca"></span><span><b style="font-weight:600;display:block">${MODOS[k][0]}</b><span class="fra" style="font-size:12px;line-height:16px">${MODOS[k][1]}</span></span></button>`).join('')}
  </div>
- <div class="fra" style="margin-bottom:8px">O que vai tocar</div>
+ ${S.conn&&S.conn!=='eu'?`<div class="faixa" style="margin-bottom:16px">${ic('aviso',18)}<span>Ao disponibilizar, você sai da sessão com ${achar(S.conn).nome}.</span></div>`:''}<div class="fra" style="margin-bottom:8px">O que vai tocar</div>
  <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link do YouTube ou de outro site" aria-label="Link" data-enter="comecar-oferta"></div>
  <button class="btn pri larga" data-act="comecar-oferta" ${dica('Disponibilizar','Seus amigos passam a ver na lista')}>Disponibilizar</button>
  </div></div>`}
@@ -91,14 +91,14 @@ function folhaOpcoes(){const o=S.opc,l=(k,t,s)=>`<div class="linha-op"><div><div
  return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Opções</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
  <div class="mio"><div class="pedido" style="margin-bottom:8px">${av(EU,40,false)}<div style="flex:1"><b style="font-weight:600">${EU.conta}</b><div class="fra">Conta do Discord</div></div><button class="btn" style="height:32px" data-act="sair-conta" ${dica('Sair da conta','Volta para a tela de entrada')}>Sair</button></div>
  ${l('win','Iniciar com o Windows','Abre sozinho quando você liga o PC')}${o.win?l('min','Iniciar minimizado','Ao ligar o PC, fica só na bandeja').replace('class="linha-op"','class="linha-op" style="padding-left:16px"'):''}${l('av','Avisar quando um amigo disponibilizar','Aparece um aviso no canto da tela')}
- <div class="linha-op"><div><div>Versão ${S.versao||'0.1.1'}</div><div class="fra" style="font-size:12px;line-height:16px">Quando sai versão nova, ela entra sozinha ao fechar o Junto</div></div></div>
+ <div class="linha-op"><div><div>Versão ${S.versao||''}</div><div class="fra" style="font-size:12px;line-height:16px">Versão nova entra sozinha quando você não está numa sessão</div></div></div>
  </div></div>`}
 function camada(){return S.camada==='oferecer'?folhaOferecer():S.camada==='amigos'?folhaAmigos():S.camada==='opcoes'?folhaOpcoes():S.camada==='p:fila'&&P.folhaFila?P.folhaFila(S):''}
 function menuAmigo(){if(!S.menu)return '';const a=achar(S.menu);return `<div class="menu" style="right:12px;top:${S.menuY||160}px">
  ${a.tipo?`<button data-act="conectar:${a.id}">${ic('fones',18)}Conectar</button>`:''}
  ${D.F.avisoAmigo?`<button data-act="noop">${ic('sino',18)}Avisar quando ${a.nome} disponibilizar</button>`:''}
- <button class="perigo" data-act="remover:${a.id}">${ic('x',18)}Remover amigo</button></div>`}
-function avisoTopo(){if(S.aviso!=='amigo')return '';const a=achar('marina');return `<div class="aviso-topo" role="status">${av(a,40,false)}<div class="corta" style="flex:1"><b style="font-weight:600">Marina disponibilizou</b><div class="sub corta">${a.titulo}</div></div><button class="btn pri" style="height:32px" data-act="conectar:marina" ${dica('Conectar')}>Conectar</button></div>`}
+ <button class="perigo" data-act="remover:${a.id}">${ic('x',18)}${S.confRem===a.id?'Clique de novo para remover':'Remover amigo'}</button></div>`}
+function avisoTopo(){if(S.aviso==='erro')return `<div class="aviso-topo erro" role="alert">${ic('aviso',20)}<span style="flex:1">${S.avisoTxt||''}</span></div>`;if(S.aviso!=='amigo')return '';const a=achar('marina');return `<div class="aviso-topo" role="status">${av(a,40,false)}<div class="corta" style="flex:1"><b style="font-weight:600">Marina disponibilizou</b><div class="sub corta">${a.titulo}</div></div><button class="btn pri" style="height:32px" data-act="conectar:marina" ${dica('Conectar')}>Conectar</button></div>`}
 function janelaVideo(){const a=achar(S.conn||'marina');const p=(S.pos/a.dur)*100;return `<div id="videojan"><div class="video-tela"><div class="sol"></div><div class="marca-v">${av(a,24,false)}<span>${a.titulo} · ${a.sub}</span></div>
  ${S.tela==='esperando-v'?'':''}
  <div class="video-ctl"><div class="barra-p" data-act="noop"><i data-pos style="width:${p}%"></i></div><div class="fila">
@@ -112,7 +112,15 @@ function janelaVideo(){const a=achar(S.conn||'marina');const p=(S.pos/a.dur)*100
  </div></div></div></div>`}
 
 /* ---------- desenho ---------- */
+/* a redraw replaces the volume slider: hold it while the user drags, redraw on release */
+let arrastaVol=false,redesenhar=false;
+document.addEventListener('pointerdown',e=>{if(e.target.matches&&e.target.matches('input.vol'))arrastaVol=true},true);
+const soltaVol=()=>{if(!arrastaVol)return;arrastaVol=false;if(redesenhar){redesenhar=false;desenhar()}};
+document.addEventListener('pointerup',soltaVol,true);document.addEventListener('pointercancel',soltaVol,true);
 function desenhar(){
+  if(arrastaVol){redesenhar=true;return}
+  if(S.conn&&!achar(S.conn))S.conn=null; /* never draw a session nobody can show */
+  if((S.tela==='sessao'||S.tela==='video')&&!S.conn)S.tela='principal';
   const raiz=document.getElementById('raiz');
   if(S.tela==='video'){raiz.innerHTML=janelaVideo();ligarVal();return}
   let miolo;
@@ -151,7 +159,7 @@ function agir(a,el){const [c,v]=a.split(':');
    case 'pedir':{const c=document.querySelector('input[data-enter="pedir"]');if(c&&c.value.trim()){c.value='';S.faixa='pedido'}break}
    case 'aceitar':case 'recusar':{const i=D.recebidos.findIndex(p=>p.id===v);if(i>=0)D.recebidos.splice(i,1);break}
    case 'cancelar':{const i=D.enviados.findIndex(p=>p.usuario===v);if(i>=0)D.enviados.splice(i,1);break}
-   case 'remover':{const i=AMIGOS.findIndex(p=>p.id===v);if(i>=0)AMIGOS.splice(i,1);S.menu=null;break}
+   case 'remover':{if(S.confRem!==v){S.confRem=v;break}const i=AMIGOS.findIndex(p=>p.id===v);if(i>=0)AMIGOS.splice(i,1);S.menu=null;S.confRem=null;break}
    case 'oftipo':S.ofTipo=v;break;case 'ofmodo':S.ofModo=v;break;
    case 'opc':S.opc[v]=!S.opc[v];break;
    case 'comecar-oferta':S.oferecendo=true;S.camada=null;S.tela='principal';break;
@@ -163,7 +171,7 @@ function agir(a,el){const [c,v]=a.split(':');
    case 'tocar':if(!podeControlar())break;S.tocando=!S.tocando;break;
    case 'abrir-video':S.videoAberto=!S.videoAberto;break;
    case 'fechar-video':S.tela=S.conn?'sessao':'principal';break;
-   case 'menu':{S.menu=v;const r=el.getBoundingClientRect();S.menuY=Math.min(r.bottom-32,560);break}
+   case 'menu':{S.menu=v;S.confRem=null;const r=el.getBoundingClientRect();S.menuY=Math.min(r.bottom-32,560);break}
    case 'sel':S.sel=+v;break;
    case 'fechar':case 'min':break;
    case 'noop':break;
@@ -190,7 +198,7 @@ const CENAS={
  amigos:{tela:'principal',camada:'amigos'},
  pedido:{tela:'principal',camada:'amigos',faixa:'pedido'},
  'pedido-erro':{tela:'principal',camada:'amigos',faixa:'pedido-erro',faixaTxt:'Esse nome não parece um usuário do Discord. Confira e tente de novo.'},
- opcoes:{tela:'principal',camada:'opcoes'},
+ opcoes:{tela:'principal',camada:'opcoes',versao:'0.1.2'},
  sessao:{tela:'sessao',conn:'marina',pos:1068},
  'sem-controle':{tela:'sessao',conn:'caio',pos:92},
  'so-fila':{tela:'sessao',conn:'bia',pos:2410},
@@ -198,11 +206,17 @@ const CENAS={
  'erro-link':{tela:'sessao',conn:'caio',pos:92,faixa:'erro-link'},
  'sem-conexao':{tela:'sessao',conn:'marina',pos:1068,faixa:'perdeu',tocando:false},
  'enviando':{tela:'sessao',conn:'marina',pos:1068,faixa:'enviando'},
- video:{tela:'video',conn:'marina',pos:1068}
+ video:{tela:'video',conn:'marina',pos:1068},
+ 'sessao-offline':{tela:'sessao',conn:'marina',pos:1068,offline:true,tocando:false},
+ remover:{tela:'principal',menu:'caio',menuY:200,confRem:'caio'},
+ 'sua-sessao':{tela:'sessao',conn:'eu',oferecendo:true,pos:40,eu:{tipo:'ouvir',modo:'dono',titulo:'Maré alta',sub:'Banda Aurora',arte:1,dur:242,gente:['caio'],fila:[['Maré alta','Banda Aurora','4:02',1,'link']]}},
+ 'erro-aviso':{tela:'principal',aviso:'erro',avisoTxt:'Não deu pra entrar na sessão. Tente de novo.'},
+ 'fila-vazia':{tela:'sessao',conn:'eu',oferecendo:true,pos:0,tocando:false,eu:{tipo:'ouvir',modo:'dono',titulo:'',sub:'',arte:0,dur:0,gente:[],fila:[]}}
 };
 function aplicarCena(){
   const h=decodeURIComponent(location.hash.slice(1)).split('|');const c=CENAS[h[0]];
-  if(c){Object.assign(S,{tela:'principal',conn:null,camada:null,menu:null,aviso:null,faixa:null,oferecendo:false,vazio:false,tocando:true,carregando:false,semOf:false,offline:false,etapa1:false,erroLogin:null},c);ultimaTela=null;ultimaCam=null;}
+  if(c&&c.eu){Object.assign(EU,c.eu)}
+  if(c){Object.assign(S,{tela:'principal',conn:null,camada:null,menu:null,aviso:null,faixa:null,oferecendo:false,vazio:false,tocando:true,carregando:false,semOf:false,offline:false,etapa1:false,erroLogin:null,confRem:null,avisoTxt:''},c);delete S.eu;ultimaTela=null;ultimaCam=null;}
   desenhar();
   if(h[1])h[1].split(',').forEach(k=>document.dispatchEvent(new KeyboardEvent('keydown',{key:k==='Space'?' ':k,bubbles:true})));
 }
@@ -210,12 +224,12 @@ function aplicarCena(){
 /* ---------- teclado e clique ---------- */
 function iniciar(prop){P=prop;
   document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(el){agir(el.dataset.act,el);return}if(S.menu){S.menu=null;desenhar()}});
-  document.addEventListener('contextmenu',e=>{const el=e.target.closest('[data-menu]');e.preventDefault();if(el){S.menu=el.dataset.menu;const r=el.getBoundingClientRect();S.menuY=Math.min(r.top+32,540);desenhar()}});
+  document.addEventListener('contextmenu',e=>{const el=e.target.closest('[data-menu]');e.preventDefault();if(el){S.menu=el.dataset.menu;S.confRem=null;const r=el.getBoundingClientRect();S.menuY=Math.min(r.top+32,540);desenhar()}});
   document.addEventListener('keydown',e=>{
     const noCampo=e.target.tagName==='INPUT';
     if(e.key==='Escape'){if(S.menu)S.menu=null;else if(S.camada)S.camada=null;else if(S.tela==='video')S.tela='sessao';else if(S.tela==='sessao'&&P.esc)P.esc(S);else return;desenhar();return}
     if(noCampo){if(e.key==='Enter'&&e.target.dataset.enter){e.preventDefault();agir(e.target.dataset.enter,e.target)}return}
-    if(e.key===' '&&(S.conn)){e.preventDefault();agir('tocar');return}
+    if(e.key===' '&&S.conn&&S.tela==='sessao'&&!S.camada&&!S.menu){e.preventDefault();agir('tocar');return}
     if(e.key==='Enter'&&e.target.matches('[data-act]')){return}
     if(P.tecla&&P.tecla(e,S)){e.preventDefault();desenhar();return}
     if(['ArrowDown','ArrowUp'].includes(e.key)){const f=[...document.querySelectorAll('[data-lista]')];if(!f.length)return;const i=f.indexOf(document.activeElement);const n=e.key==='ArrowDown'?Math.min(f.length-1,i+1):Math.max(0,i-1);f[n].focus();f[n].scrollIntoView({block:'nearest'});e.preventDefault()}

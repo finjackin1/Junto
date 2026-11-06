@@ -17,7 +17,14 @@ Link field + file button together everywhere media is added (offer sheet and que
 Iniciar com o Windows; Iniciar mais rápido (sub-option, only visible while the first is on; logon scheduled task, same recipe as interface-simples/inicio_windows.py); Iniciar minimizado; Avisar quando um amigo disponibilizar; Versão + "Em dia".
 
 ## Links: visible errors
-Only permission failure shows anything: "Sem permissão para abrir esse link, então ele foi pulado." Tool updates and retries are never shown.
+Playing: site refused ("Esse site não deixou abrir o link. Ele não toca neste PC.") or resolve still failing after 3 silent retries ("Não deu pra abrir este item neste PC. Confira sua internet."); an expired stream is re-resolved once, silently. Adding: not a link / can't open / server refusal (only dono adds, queue full, too fast, session over) / no connection each show one plain line, 6 s.
+
+## Session
+Own session: title "Sua sessão", right button "Encerrar sessão" (stops for everyone), top + hidden. Friend session: "Com X", "Sair da sessão". Empty queue: "Nada tocando", hint line, controls and Ver disabled, times --:--. Offline: lost-connection banner. Volume: mute button + slider (input.vol), wheel 5% steps, saved per PC. Offer sheet warns when it will leave a friend's session.
+Video window: click play/pause, double click or F or button = fullscreen, Esc leaves fullscreen first, then closes.
+
+## Friends
+Remove friend: first click turns into "Clique de novo para remover", second removes. Section "Sem nada agora" hidden when empty.
 
 ## Data and safety
 Friends, requests, account come from M.D / M.AMIGOS / M.EU; app bridge replaces samples and escapes every server string before it enters state. Avatar with photo: Discord image over its color, no letter. Tooltips are built as text, never HTML. Redraw keeps typed field text, caret and sheet scroll. Enter on a field with data-enter runs its action.
@@ -27,7 +34,10 @@ Close button: click = tray; hold 1 s = quit, button fills red while held.
 Esc closes menu > sheet > video > session. Space play/pause when connected. Up/Down move through list. Enter activates focused. Right click on card = menu. Tooltip after 600 ms.
 
 ## States (scene via #hash, ?foto ends animations)
-login, entrando, erro-login, vazio, principal, carregando, sem-ofertas, sem-internet, etapa1 (Disponibilizar disabled until stage 2), pedido-erro, menu, aviso, oferecer, oferecendo, amigos, pedido, opcoes, sessao, sem-controle, so-fila, esperando, erro-link, sem-conexao, enviando, video.
+login, entrando, erro-login, vazio, principal, carregando, sem-ofertas, sem-internet, etapa1 (Disponibilizar disabled until stage 2), pedido-erro, menu, aviso, oferecer, oferecendo, amigos, pedido, opcoes, sessao, sem-controle, so-fila, esperando, erro-link, sem-conexao, enviando, video, sessao-offline, remover, sua-sessao, fila-vazia, erro-aviso.
 
 ## Check per id
 Not started (stage 1 onward).
+
+## Errors outside the friends sheet
+Offer, connect and remove failures: red top toast (aviso-topo erro), 6 s. Connecting elsewhere while my session has guests: first click shows a warning toast, second click within 6 s connects. Leaving a session offline: leaves here at once, server told on reconnect. Left time shows --:-- with empty queue. Controls disabled while offline. Update: installs when not in a session (restart comes back in the tray if the window was hidden); on quit it installs and stays closed.

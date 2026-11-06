@@ -154,6 +154,11 @@ test('textoHelper has the paths and PID; rejects bad pid', () => {
   assert.match(t, /robocopy "%NOVO%" "%DESTINO%" \/MIR \/R:2 \/W:1/);
   assert.match(t, /Junto\.exe"/);
   assert.throws(() => A.textoHelper({ pid: '1 & calc', novo: 'a', destino: 'b', pasta: 'c' }));
+  assert.doesNotMatch(t, /errorlevel 8/); // relaunch even if the copy failed
+  const min = A.textoHelper({ pid: 1, novo: 'a', destino: 'b', pasta: 'c', abrir: 'min' });
+  assert.match(min, /Junto\.exe" --minimizado/);
+  const nao = A.textoHelper({ pid: 1, novo: 'a', destino: 'b', pasta: 'c', abrir: 'nao' });
+  assert.doesNotMatch(nao, /start ""/);
 });
 
 test('helper script really mirrors novo -> destino between temp folders and cleans up', async () => {
@@ -202,6 +207,7 @@ test('controller: applies right away outside a session, waits inside one, applie
     assert.equal(a.ev.lancar, 1);
     assert.equal(a.ev.args.pid, 1234);
     assert.equal(a.ev.args.destino, prog);
+    assert.equal(a.ev.args.abrir, 'nao'); // user quit: stays closed after installing
     a.c.aoSair();
     assert.equal(a.ev.lancar, 1); // once only
     // out of session: applied and quit requested
@@ -209,6 +215,7 @@ test('controller: applies right away outside a session, waits inside one, applie
     await b.c.verificar();
     assert.equal(b.ev.lancar, 1);
     assert.equal(b.ev.sair, 1);
+    assert.equal(b.ev.args.abrir, 'normal');
     // inactive: nothing
     const off = A.criarAtualizacao({ atual: '0.1.0', ativo: false, url, emSessao: () => false, sair() { }, lancar() { throw new Error('no'); } });
     assert.equal(await off.verificar(), null);

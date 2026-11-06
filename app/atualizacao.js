@@ -139,8 +139,10 @@ function pastaProgramaOk(dir) {
   return fs.existsSync(path.join(d, 'Junto.exe'));
 }
 
-// .cmd text: wait for pid, mirror novo -> destino, relaunch, clean up
-function textoHelper({ pid, novo, destino, pasta }) {
+// .cmd text: wait for pid, mirror novo -> destino, relaunch, clean up.
+// abrir: 'normal' | 'min' (relaunch in the tray) | 'nao' (user quit: stay closed). Relaunch happens even if the copy failed,
+// so the user is never left without the program.
+function textoHelper({ pid, novo, destino, pasta, abrir = 'normal' }) {
   const n = Number(pid);
   if (!Number.isInteger(n) || n <= 0) throw new Error('pid invalido');
   return [
@@ -159,8 +161,7 @@ function textoHelper({ pid, novo, destino, pasta }) {
     'goto espera',
     ':copia',
     'robocopy "%NOVO%" "%DESTINO%" /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP >nul',
-    'if errorlevel 8 goto fim',
-    'if exist "%DESTINO%\\Junto.exe" start "" /D "%DESTINO%" "%DESTINO%\\Junto.exe"',
+    ...(abrir === 'nao' ? [] : ['if exist "%DESTINO%\\Junto.exe" start "" /D "%DESTINO%" "%DESTINO%\\Junto.exe"' + (abrir === 'min' ? ' --minimizado' : '')]),
     ':fim',
     'rd /s /q "%NOVO%" >nul 2>nul',
     'del /q "%PASTA%\\*.zip" >nul 2>nul',
@@ -171,16 +172,16 @@ function textoHelper({ pid, novo, destino, pasta }) {
 }
 
 // writes helper into pasta and spawns it detached + hidden; returns the .cmd path
-function lancarHelper({ pid = process.pid, novo, destino, pasta }) {
+function lancarHelper({ pid = process.pid, novo, destino, pasta, abrir }) {
   const cmd = path.join(pasta, 'aplicar.cmd');
-  fs.writeFileSync(cmd, textoHelper({ pid, novo, destino, pasta }), 'latin1');
+  fs.writeFileSync(cmd, textoHelper({ pid, novo, destino, pasta, abrir }), 'latin1');
   const f = cp.spawn(process.env.ComSpec || path.join(SYS, 'System32', 'cmd.exe'), ['/c', cmd], { detached: true, windowsHide: true, stdio: 'ignore' });
   f.on('error', () => { /* helper failed to start: nothing to do */ });
   f.unref();
   return cmd;
 }
 
-// controller. o = { atual, log, emSessao(), sair(), ativo, exe?, tmp?, url?, pid?, primeira?, intervalo?, lancar? }
+// controller. o = { atual, log, emSessao(), sair(), ativo, minimizado()?, exe?, tmp?, url?, pid?, primeira?, intervalo?, lancar? }
 function criarAtualizacao(o) {
   const log = o.log || (() => {});
   const exe = o.exe || process.execPath;
@@ -189,11 +190,11 @@ function criarAtualizacao(o) {
   const lancar = o.lancar || lancarHelper;
   let pronta = null, ocupado = false, aplicando = false, t1 = null, t2 = null;
 
-  function aplicar() {
+  function aplicar(abrir) {
     if (aplicando || !pronta) return false;
     if (!pastaProgramaOk(destino)) { log('atualizacao: pasta do programa recusada', destino); return false; }
     aplicando = true;
-    try { lancar({ pid: o.pid || process.pid, novo: pronta.novo, destino, pasta }); log('atualizacao: aplicando', pronta.versao); return true; } catch (e) { aplicando = false; log('atualizacao: helper falhou', e); return false; }
+    try { lancar({ pid: o.pid || process.pid, novo: pronta.novo, destino, pasta, abrir }); log('atualizacao: aplicando', pronta.versao); return true; } catch (e) { aplicando = false; log('atualizacao: helper falhou', e); return false; }
   }
 
   async function verificar() {
@@ -206,7 +207,8 @@ function criarAtualizacao(o) {
         if (r.estado === 'erro') log('atualizacao: pulou', r.erro);
         else if (r.estado === 'pronta' || r.estado === 'ja-pronta') { pronta = { versao: r.versao, novo: r.novo }; log('atualizacao: pronta', r.versao); }
       }
-      if (pronta && !o.emSessao()) { if (aplicar()) o.sair(); }
+      // idle restart: comes back the way it was (in the tray if the window was hidden)
+      if (pronta && !o.emSessao()) { if (aplicar(o.minimizado && o.minimizado() ? 'min' : 'normal')) o.sair(); }
     } catch (e) { log('atualizacao: erro', e); } finally { ocupado = false; }
     return r;
   }
@@ -219,7 +221,7 @@ function criarAtualizacao(o) {
       if (t1.unref) t1.unref();
     },
     parar() { clearTimeout(t1); clearInterval(t2); },
-    aoSair() { if (o.ativo && pronta && !aplicando) aplicar(); }, // normal quit with an update pending
+    aoSair() { if (o.ativo && pronta && !aplicando) aplicar('nao'); }, // user quit with an update pending: install, stay closed
     pendente: () => (pronta ? pronta.versao : ''),
   };
 }

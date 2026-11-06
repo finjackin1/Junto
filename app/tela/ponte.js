@@ -33,13 +33,31 @@
     muitos_pedidos: 'Muitos pedidos sem resposta. Cancele algum para enviar outro.',
     sem_conexao: 'Sem conexão agora. Tente de novo em instantes.',
   };
+  const ERROS_ADD = {
+    sem_permissao: 'Nesta sessão só o dono põe coisas na fila.',
+    sem_conexao: 'Sem conexão agora. Tente de novo em instantes.',
+    fila_cheia: 'A fila está cheia. Espere tocar alguma coisa ou tire um item.',
+    devagar: 'Muitos links seguidos. Espere alguns segundos e tente de novo.',
+    nao_encontrado: 'Essa sessão já acabou.',
+  };
   const erroPedido = e => { S.faixa = 'pedido-erro'; S.faixaTxt = ERROS_PEDIDO[e] || ERROS_PEDIDO.sem_conexao; };
+  const SITE_RECUSOU = 'Esse site não deixou abrir o link.';
+  // Top toast for failures outside the friends sheet (offer, connect, remove). Hides itself after 6 s.
+  let timerAviso = null;
+  function erroGeral(txt) {
+    S.aviso = 'erro'; S.avisoTxt = esc(txt);
+    clearTimeout(timerAviso);
+    timerAviso = setTimeout(() => { if (S.aviso === 'erro') { S.aviso = null; M.desenhar(); } }, 6000);
+  }
 
   // ---------- stage 2: session, local playback ----------
   const Sin = window.Sincronia;
   const CAMPOS_EU = ['tipo', 'modo', 'titulo', 'sub', 'arte', 'dur', 'pos', 'gente', 'fila'];
   let ultEstado = null, ultSessao = null, meuId = null;
   let item = null, itemTipo = null, carregado = false, midiaAtual = null, seq = 0, fimEm = 0, timerFaixa = null, timerTenta = null, adicionando = false;
+  let saidaPendente = null; // {t, dono}: leave asked while offline, sent on reconnect; snapshots of that dono are ignored until then
+  let linkPendente = null;  // {link, tipo}: link typed when offering, added once my session snapshot arrives
+  let reresolvido = null;   // item already re-resolved once after a playback error (expired stream address)
   const ESPERAS = [2000, 5000, 10000]; // silent retries when resolving the current item fails transiently
 
   // The prototype's 1 s tick (pulso) also writes S.pos; here the position comes from the server clock, so only we may write it.
@@ -65,9 +83,21 @@
     S.vol = Math.round(Math.min(1, Math.max(0, S.vol + (e.deltaY < 0 ? 0.05 : -0.05))) * 100) / 100;
     S.mudo = S.vol === 0; aplicarVol(); M.desenhar();
   }, { passive: false });
+  document.addEventListener('input', e => {
+    if (!e.target.matches || !e.target.matches('input.vol')) return;
+    const v = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+    S.vol = v / 100; S.mudo = v === 0; aplicarVol();
+    e.target.style.setProperty('--v', v + '%');
+  });
+  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('input.vol')) M.desenhar(); });
   const sincA = Sin.criarSincronizador(audio, { agora: () => J.agoraServidor() });
   audio.addEventListener('loadedmetadata', () => { carregado = true; });
   audio.addEventListener('ended', () => enviarFim());
+  // The stream address from yt-dlp expires or the site cuts it: resolve this item again, once.
+  audio.addEventListener('error', () => {
+    if (!audio.getAttribute('src') || item == null || reresolvido === item) return;
+    reresolvido = item; itemTipo = null; trocarItem();
+  });
 
   const arteDe = n => Math.min(7, Math.max(0, Number(n) | 0));
   const durDe = it => (it && typeof it.dur === 'number' && it.dur > 0 ? it.dur : 0);
@@ -86,7 +116,8 @@
   }
 
   function dadosVideo() {
-    if (!ultSessao || ultSessao.tipo !== 'ver') return;
+    if (!ultSessao) return;
+    if (ultSessao.tipo !== 'ver') { J.fecharVideo(); return; }
     const it = (ultSessao.fila || []).find(x => x.id === item);
     J.videoDados({ video: (midiaAtual && midiaAtual.video) || null, item, titulo: it ? it.titulo : '', sub: it ? it.sub : '', dur: durDe(it) || null, P: ultSessao.P });
   }
@@ -123,7 +154,8 @@
     }
     const larg = d ? (S.pos / d * 100) + '%' : '0%';
     document.querySelectorAll('[data-pos]').forEach(e => { e.style.width = larg; });
-    document.querySelectorAll('[data-t1]').forEach(e => { e.textContent = M.hms(S.pos); });
+    const vazio = !P || P.item == null;
+    document.querySelectorAll('[data-t1]').forEach(e => { e.textContent = vazio ? '--:--' : M.hms(S.pos); });
     document.querySelectorAll('[data-t]').forEach(e => { e.textContent = M.hms(S.pos) + ' / ' + M.hms(d); });
   }
 
@@ -133,6 +165,7 @@
     const tp = m && m.tipo === 'ver' ? 'ver' : 'ouvir';
     if (id === item && tp === itemTipo) return;
     J.cancelarResolver(); clearTimeout(timerTenta); timerTenta = null;
+    if (id !== item) reresolvido = null;
     item = id; itemTipo = tp; carregado = false; midiaAtual = null; fimEm = 0;
     const meu = ++seq;
     audio.removeAttribute('src'); audio.load();
@@ -144,8 +177,9 @@
     const tentar = (n) => J.resolver(it.url, tipo).then(r => {
       if (meu !== seq) return;
       if (!r || !r.ok) {
-        if (r && r.erro === 'sem_permissao') { faixaErroLink(); return; } // silent on this PC for this item
+        if (r && r.erro === 'sem_permissao') { faixaErroLink(SITE_RECUSOU + ' Ele não toca neste PC.'); return; }
         if (n < ESPERAS.length) timerTenta = setTimeout(() => { timerTenta = null; if (meu === seq) tentar(n + 1); }, ESPERAS[n]); // transient: retry silently
+        else faixaErroLink('Não deu pra abrir este item neste PC. Confira sua internet.');
         return;
       }
       midiaAtual = r;
@@ -181,6 +215,7 @@
 
   function aoSnapshot(m) {
     if (!m || typeof m !== 'object') return;
+    if (saidaPendente && m.dono === saidaPendente.dono) return; // I already left this one while offline
     if (m.fim) { encerrar(); return; }
     const novo = !ultSessao || ultSessao.dono !== m.dono;
     ultSessao = m;
@@ -193,13 +228,18 @@
     sincronizar();
     dadosVideo();
     atualizarPos();
+    if (linkPendente && m.dono === meuId) { const l = linkPendente; linkPendente = null; adicionarLink(l.link, l.tipo); }
     M.desenhar();
   }
 
+  const LINK_RUIM = 'Isso não é um link. Cole um endereço que começa com http.';
+  const linkValido = url => /^https?:\/\/\S+$/i.test(url);
   async function adicionarLink(url, tipo) {
-    if (!/^https?:\/\/\S+$/i.test(url)) { faixaErroLink('Isso não é um link. Cole um endereço que começa com http.'); return false; }
+    if (!linkValido(url)) { faixaErroLink(LINK_RUIM); return false; }
+    const dono = ultSessao && ultSessao.dono;
     const r = await J.resolver(url, tipo, 'add');
-    if (!r || !r.ok) { faixaErroLink(r && r.erro === 'sem_permissao' ? '' : 'Não deu pra abrir esse link.'); return false; }
+    if (!ultSessao || ultSessao.dono !== dono) return false; // session changed while resolving: drop it
+    if (!r || !r.ok) { faixaErroLink(r && r.erro === 'sem_permissao' ? SITE_RECUSOU : 'Não deu pra abrir esse link.'); return false; }
     try {
       const msg = { t: 'adicionar', url, titulo: String(r.titulo || url).slice(0, 200), sub: String(r.sub || '').slice(0, 120), dur: r.dur };
       let resp = await J.enviar(msg);
@@ -207,9 +247,9 @@
         await new Promise(f => setTimeout(f, Math.min(3000, Math.max(0, Number(resp.espera) || 0))));
         resp = await J.enviar(msg);
       }
-      if (!resp.ok && resp.erro === 'sem_permissao') faixaErroLink();
-      return !!resp.ok;
-    } catch (e) { return false; }
+      if (!resp || !resp.ok) faixaErroLink(ERROS_ADD[resp && resp.erro] || 'Não deu pra pôr na fila. Tente de novo.');
+      return !!(resp && resp.ok);
+    } catch (e) { faixaErroLink('Sem conexão agora. Tente de novo em instantes.'); return false; }
   }
 
   setInterval(() => {
@@ -220,31 +260,17 @@
   function limpar() {
     parar();
     AMIGOS.length = 0; D.recebidos.length = 0; D.enviados.length = 0;
-    S.conn = null; S.camada = null; S.menu = null; S.faixa = null; S.carregando = false; S.offline = false; S.vazio = false;
+    S.conn = null; S.camada = null; S.menu = null; S.faixa = null; S.carregando = false; S.offline = false; S.vazio = false; S.confRem = null;
+    S.aviso = null; ofertasAntes = null; saidaPendente = null; linkPendente = null; confConectar = null;
   }
-
-  // Own session: the dono's avatar appears once (the prototype lists the owner and then "eu"), and the title says "Sua sessão".
-  M.gente = function (a) {
-    const g = a.id === 'eu' ? ['eu', ...a.gente] : [a.id, ...a.gente, 'eu'];
-    return '<span style="display:inline-flex;align-items:center">' + g.map((id, i) => `<span style="margin-left:${i ? -8 : 0}px;border-radius:50%;box-shadow:0 0 0 2px var(--gente-b,var(--fundo));display:inline-flex" ${M.dica(M.achar(id).nome + (id === a.id ? ' (dono)' : ''))}>${M.av(id, 28, false)}</span>`).join('') + '</span>';
-  };
-  const raizTela = document.getElementById('raiz');
-  const textoProprio = new MutationObserver(() => {
-    if (S.conn !== 'eu') return;
-    const t = raizTela.querySelector('.topo2 .corta');
-    if (t && t.textContent !== 'Sua sessão') t.textContent = 'Sua sessão';
-    const b = raizTela.querySelector('.flut-bar .corta .corta:last-child');
-    if (b && /^com /.test(b.textContent)) b.textContent = 'Sua sessão';
-  });
-  textoProprio.observe(raizTela, { childList: true, subtree: true });
 
   // "Avisar quando um amigo disponibilizar": Windows notification when a friend's offer appears (not on the first list).
   let ofertasAntes = null;
   function avisarOfertas(amigos) {
-    const agora = new Map(amigos.filter(a => a.oferta && typeof a.oferta === 'object').map(a => [a.id, a]));
+    const agora = new Map(amigos.filter(a => a.oferta && typeof a.oferta === 'object').map(a => [a.id + ':' + a.oferta.tipo, a])); // a friend switching listen <-> watch is a new offer
     if (ofertasAntes && S.opc.av && J.avisar) {
-      for (const [id, a] of agora) {
-        if (!ofertasAntes.has(id)) J.avisar(`${a.nome || a.usuario || 'Um amigo'} disponibilizou`, String(a.oferta.titulo || ''));
+      for (const [k, a] of agora) {
+        if (!ofertasAntes.has(k)) J.avisar(`${a.nome || a.usuario || 'Um amigo'} disponibilizou`, String(a.oferta.titulo || ''));
       }
     }
     ofertasAntes = new Set(agora.keys());
@@ -283,24 +309,28 @@
     if (S.menu && !AMIGOS.some(a => a.id === S.menu)) S.menu = null;
   }
 
-  async function enviar(msg, depois) {
+  // aoErro(code): default = message in the friends sheet strip.
+  async function enviar(msg, depois, aoErro = erroPedido) {
     try {
       const r = await J.enviar(msg);
-      if (r && r.ok) { if (depois) depois(); } else erroPedido(r && r.erro);
-    } catch (e) { erroPedido('sem_conexao'); }
+      if (r && r.ok) { if (depois) depois(); } else aoErro(r && r.erro);
+    } catch (e) { aoErro('sem_conexao'); }
     M.desenhar();
   }
+  const SEM_REDE = 'Sem conexão agora. Tente de novo em instantes.';
+  const erroCom = txt => e => erroGeral(e === 'sem_conexao' ? SEM_REDE : txt);
+  let confConectar = null, timerConf = null; // dono I clicked once while my own session has guests
 
   M.ponte((c, v, el) => {
     switch (c) {
       case 'entrar':
         S.tela = 'entrando'; S.erroLogin = null;
         J.entrar().then(r => {
-          if (r.ok) { S.tela = 'principal'; S.carregando = true; }
-          else if (r.erro === 'cancelado') S.tela = 'login';
-          else { S.tela = 'erro-login'; S.erroLogin = ERROS_LOGIN[r.erro] || ERROS_LOGIN.discord_fora; }
+          if (r && r.ok) { S.tela = 'principal'; S.carregando = true; }
+          else if (r && r.erro === 'cancelado') S.tela = 'login';
+          else { S.tela = 'erro-login'; S.erroLogin = ERROS_LOGIN[r && r.erro] || ERROS_LOGIN.discord_fora; }
           M.desenhar();
-        });
+        }).catch(() => { S.tela = 'erro-login'; S.erroLogin = ERROS_LOGIN.discord_fora; M.desenhar(); });
         return true;
       case 'cancelar-login': J.cancelarEntrada(); return true;
       case 'sair-conta':
@@ -317,7 +347,9 @@
       }
       case 'aceitar': case 'recusar': enviar({ t: c, id: v }); return true;
       case 'cancelar': enviar({ t: 'cancelar', usuario: v }); return true;
-      case 'remover': S.menu = null; enviar({ t: 'remover', id: v }); return true;
+      case 'remover':
+        if (S.confRem !== v) { S.confRem = v; return true; } // first click only arms it; the button text asks for a second click
+        S.menu = null; S.confRem = null; enviar({ t: 'remover', id: v }, null, erroCom('Não deu pra remover esse amigo. Tente de novo.')); return true;
       case 'opc': S.opc[v] = !S.opc[v]; J.salvarOpcoes(S.opc); return true;
       case 'volume': S.mudo = !S.mudo; if (!S.mudo && S.vol === 0) S.vol = 0.5; aplicarVol(); return true;
       case 'add-link': adicionarFila(); return true;
@@ -326,13 +358,16 @@
         const modo = ['todos', 'dono', 'fila'].includes(S.ofModo) ? S.ofModo : 'todos';
         const campo = document.querySelector('.folha input.campo');
         const link = campo ? campo.value.trim() : '';
+        if (link && !linkValido(link)) { erroGeral(LINK_RUIM); if (campo) campo.focus(); return true; }
+        if (saidaPendente && saidaPendente.dono === meuId) saidaPendente = null; // a new offer of mine must not be ignored
         enviar({ t: 'oferecer', tipo, modo }, () => {
           S.oferecendo = true; S.camada = null;
-          if (link) adicionarLink(link, tipo);
-        });
+          if (link) { linkPendente = { link, tipo }; if (ultSessao && ultSessao.dono === meuId) aoSnapshot(ultSessao); }
+        }, erroCom('Não deu pra disponibilizar agora. Tente de novo.'));
         return true;
       }
       case 'parar-oferta':
+        linkPendente = null;
         J.enviar({ t: 'parar' }).catch(() => {}).then(() => { if (S.conn === 'eu') encerrar(); else { S.oferecendo = false; M.desenhar(); } });
         return true;
       case 'conectar': {
@@ -340,12 +375,25 @@
         S.menu = null; S.aviso = null;
         if (!f || !f.tipo) return true;
         if (S.conn === v) { S.tela = 'sessao'; S.camada = null; return true; }
-        enviar({ t: 'entrar_sessao', dono: v });
+        const convidados = S.conn === 'eu' && Array.isArray(EU.gente) ? EU.gente.length : 0;
+        if (convidados && confConectar !== v) { // entering another session ends mine: ask for a second click
+          confConectar = v; clearTimeout(timerConf); timerConf = setTimeout(() => { confConectar = null; }, 6000);
+          erroGeral(`Isso encerra a sua sessão com ${convidados === 1 ? '1 pessoa' : convidados + ' pessoas'}. Clique em Conectar de novo para continuar.`);
+          return true;
+        }
+        confConectar = null;
+        if (saidaPendente && saidaPendente.dono === v) saidaPendente = null;
+        enviar({ t: 'entrar_sessao', dono: v }, null, erroCom('Não deu pra entrar na sessão. Tente de novo.'));
         return true;
       }
-      case 'desconectar':
-        J.enviar({ t: S.conn === 'eu' ? 'parar' : 'sair_sessao' }).catch(() => {}).then(encerrar);
+      case 'desconectar': {
+        const msg = { t: S.conn === 'eu' ? 'parar' : 'sair_sessao' };
+        const dono = ultSessao && ultSessao.dono;
+        linkPendente = null;
+        if (S.offline) { saidaPendente = { t: msg.t, dono }; encerrar(); return true; } // leave now here, tell the server on reconnect
+        J.enviar(msg).catch(() => { saidaPendente = { t: msg.t, dono }; }).then(encerrar);
         return true;
+      }
       case 'tocar': case 'pular': case 'voltar': {
         const P = ultSessao && ultSessao.P;
         if (!P || !M.podeControlar()) return true;
@@ -388,7 +436,14 @@
     const f = Math.min(1, Math.max(0, (e.clientX - r.left) / (r.width || 1)));
     J.enviar({ t: 'buscar', pos: f * a.dur }).catch(() => {});
   });
-  J.aoConexao(s => { S.offline = s !== 'on'; if (S.offline) S.carregando = false; M.desenhar(); });
+  J.aoConexao(s => {
+    S.offline = s !== 'on'; if (S.offline) S.carregando = false;
+    if (!S.offline && saidaPendente) {
+      const p = saidaPendente;
+      J.enviar({ t: p.t }).then(() => { if (saidaPendente === p) saidaPendente = null; }, () => {}); // any reply (even "not found") settles it; only a dropped link keeps it
+    }
+    M.desenhar();
+  });
   J.aoSessaoFim(() => { limpar(); S.tela = 'login'; M.desenhar(); });
   J.opcoes().then(o => { Object.assign(S.opc, o); M.desenhar(); });
   if (J.versao) J.versao().then(v => { if (v) { S.versao = v; M.desenhar(); } });

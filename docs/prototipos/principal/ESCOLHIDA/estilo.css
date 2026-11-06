@@ -112,6 +112,8 @@ button{cursor:pointer}
 .menu button{display:flex;gap:12px;align-items:center;height:36px;padding:0 8px;border-radius:8px;width:100%;text-align:left;transition:background .15s}
 .menu button:hover{background:rgba(255,255,255,.08)}.menu .perigo{color:var(--vermelho)}
 .aviso-topo{position:absolute;left:12px;right:12px;top:44px;z-index:40;padding:12px;border-radius:12px;background:var(--camada3);border:1px solid var(--borda2);box-shadow:0 12px 32px rgba(0,0,0,.45);display:flex;gap:12px;align-items:center;animation:toast .3s both}
+.aviso-topo.erro{border-color:rgba(255,107,107,.45);color:var(--t1)}
+.aviso-topo.erro .ic{color:var(--vermelho);flex:none}
 .faixa{display:flex;gap:8px;align-items:center;padding:8px 12px;font-size:13px;line-height:20px;border-radius:10px;background:var(--camada2);color:var(--t2)}
 .faixa.erro{background:rgba(255,107,107,.13);color:#FFB3B3}.faixa.esp{background:rgba(255,200,87,.12);color:#FFE0A0}
 .gira{animation:giro .8s linear infinite}
