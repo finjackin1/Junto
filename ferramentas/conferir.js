@@ -1,6 +1,7 @@
 // Pixel check: every scene of the program screen vs the chosen prototype, both shot in the SAME Electron, off screen.
 // Fails under 99.50%. Run with app's Electron: app\node_modules\electron\dist\electron.exe ferramentas\conferir.js
 const { app, BrowserWindow } = require('electron');
+app.commandLine.appendSwitch('mute-audio'); // never make sound
 const path = require('path');
 const raiz = path.resolve(__dirname, '..');
 const LIM = 99.5, TOL = 24;

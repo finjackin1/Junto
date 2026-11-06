@@ -16,6 +16,7 @@ const IC = {
   ajustes:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
   pessoas:'<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.700-6 6-6s6 2.700 6 6"/><path d="M16 4.800a3.500 3.500 0 0 1 0 6.400M18 14.400c1.800.8 3 2.600 3 5.600"/>',
   add:'<circle cx="10" cy="8" r="3.500"/><path d="M4 20c0-3.300 2.700-6 6-6 1.300 0 2.500.4 3.500 1.100M18 14v6M15 17h6"/>',
+  enviar:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   coroa:'<path d="M4 18h16l1-11-5 4-4-6-4 6-5-4z"/>', cad:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   fila:'<path d="M4 6h16M4 12h10M4 18h10"/><path class="c" d="M17 13v6l4-3z"/>',
   mudo:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9.500l5 5M21 9.500l-5 5"/>',
@@ -75,7 +76,7 @@ function folhaOferecer(){const a=S.ofTipo,m=S.ofModo;return `<div class="vela" d
   ${Object.keys(MODOS).map(k=>`<button class="opcao${m===k?' sel':''}" data-act="ofmodo:${k}" ${dica(MODOS[k][0],MODOS[k][1])}><span class="ca"></span><span><b style="font-weight:600;display:block">${MODOS[k][0]}</b><span class="fra" style="font-size:12px;line-height:16px">${MODOS[k][1]}</span></span></button>`).join('')}
  </div>
  <div class="fra" style="margin-bottom:8px">O que vai tocar</div>
- <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link do YouTube ou de outro site" aria-label="Link"></div>
+ <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link do YouTube ou de outro site" aria-label="Link" data-enter="comecar-oferta"></div>
  <button class="btn pri larga" data-act="comecar-oferta" ${dica('Disponibilizar','Seus amigos passam a ver na lista')}>Disponibilizar</button>
  </div></div>`}
 function folhaAmigos(){return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Adicionar amigos</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
@@ -146,6 +147,7 @@ function agir(a,el){const [c,v]=a.split(':');
    case 'cancelar-login':case 'sair-conta':S.tela='login';S.camada=null;S.conn=null;break;
    case 'camada':S.camada=v;S.faixa=null;S.menu=null;break;
    case 'fecha-camada':S.camada=null;S.menu=null;break;
+   case 'add-link':{const c=document.querySelector('input[data-enter="add-link"]');if(c)c.value='';break}
    case 'pedir':{const c=document.querySelector('input[data-enter="pedir"]');if(c&&c.value.trim()){c.value='';S.faixa='pedido'}break}
    case 'aceitar':case 'recusar':{const i=D.recebidos.findIndex(p=>p.id===v);if(i>=0)D.recebidos.splice(i,1);break}
    case 'cancelar':{const i=D.enviados.findIndex(p=>p.usuario===v);if(i>=0)D.enviados.splice(i,1);break}

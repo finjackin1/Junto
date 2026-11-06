@@ -205,7 +205,7 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await foto(A.p, 'oferecer');
   await semMorto(A, 'oferecer');
   conf('sem botao de arquivo no oferecer', await A.p.evaluate(() => !document.querySelector('[data-dica*="arquivo"]') && !/arquivo/.test(document.querySelector('.folha input.campo').placeholder)));
-  await A.p.click('[data-act="comecar-oferta"]');
+  await A.p.press('.folha input.campo', 'Enter'); // Enter in the link field = Disponibilizar
   await ate('Ana na propria sessao', () => A.p.evaluate(() => M.S.tela === 'sessao' && M.S.conn === 'eu'));
   conf('titulo da sessao propria: Sua sessao', await A.p.evaluate(() => document.querySelector('.topo2 .corta').textContent === 'Sua sessão'), await texto(A.p, '.topo2 .corta'));
   conf('selo mostra o modo real', (await texto(A.p, '.inf .selo')) === 'Todos controlam', await texto(A.p, '.inf .selo'));
@@ -219,12 +219,17 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await ate('Ana ve Beto na sessao (avatar uma vez cada)', () => A.p.evaluate(() => document.querySelectorAll('.inf .av').length === 2));
   conf('titulo na sessao do amigo: Com Ana', (await texto(B.p, '.topo2 .corta')) === 'Com Ana Souza', await texto(B.p, '.topo2 .corta'));
 
-  // ---- 2. permission link, then real link ----
+  // ---- 2. bad link, permission link, then real link (via button) ----
+  conf('fila tem botao Por na fila', await B.p.evaluate(() => !!document.querySelector('button[data-act="add-link"]')));
+  await B.p.fill(CAMPO, 'nao e link'); await B.p.click('button[data-act="add-link"]');
+  await ate('texto que nao e link avisa', () => B.p.evaluate(() => /não é um link/.test((document.querySelector('.faixa.erro') || {}).textContent || '')));
+  conf('texto invalido continua no campo', await B.p.evaluate(c => document.querySelector(c).value === 'nao e link', CAMPO));
   await adicionar(B, 'http://fake.test/privado/1');
   await ate('faixa sem permissao em quem adicionou', () => B.p.evaluate(() => /Sem permissão/.test((document.querySelector('.faixa.erro') || {}).textContent || '')));
   await foto(B.p, 'sem-permissao');
   conf('link sem permissao nao entrou na fila', (await filaDe(A.p)).length === 0, await filaDe(A.p));
-  await adicionar(A, 'http://fake.test/faixa/1');
+  await A.p.fill(CAMPO, 'http://fake.test/faixa/1'); await A.p.click('button[data-act="add-link"]');
+  await ate('campo esvazia depois de adicionar', () => A.p.evaluate(c => document.querySelector(c).value === '', CAMPO));
   await ate('fila da Ana tem Faixa 1', async () => (await filaDe(A.p) || []).join() === 'Faixa 1');
   await ate('Beto ve Faixa 1', async () => (await filaDe(B.p) || []).join() === 'Faixa 1');
   await ate('Ana toca', () => tocaOk(A.p), 20000);

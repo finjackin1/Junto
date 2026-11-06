@@ -15,6 +15,8 @@ const { criarAtualizacao } = require('./atualizacao');
 
 const env = process.env;
 const oculto = env.JUNTO_OCULTO === '1';
+// Test runs never make sound (user's headphones). Must be set before app ready.
+if (oculto || env.JUNTO_TESTE_ATUALIZACAO || env.JUNTO_DADOS) app.commandLine.appendSwitch('mute-audio');
 // Started by Windows at logon with "Iniciar minimizado" on: stay in the tray.
 const naBandeja = process.argv.includes('--minimizado');
 const dados = env.JUNTO_DADOS || app.getPath('userData');

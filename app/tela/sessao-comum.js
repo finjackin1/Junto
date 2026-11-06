@@ -4,7 +4,7 @@ const {ic,av,achar,MODOS,S,dica,hms,podeAdicionar,podeControlar}=M;
 M.faixaEstado=function(){
   const f=S.faixa;
   if(f==='esperando')return `<div class="faixa esp"><span class="gira">${ic('gira',18)}</span><span style="flex:1">Esperando Caio carregar. Volta em até 5 s.</span></div>`;
-  if(f==='erro-link')return `<div class="faixa erro">${ic('aviso',18)}<span style="flex:1">Sem permissão para abrir esse link, então ele foi pulado.</span></div>`;
+  if(f==='erro-link')return `<div class="faixa erro">${ic('aviso',18)}<span style="flex:1">${S.faixaTxt||'Sem permissão para abrir esse link, então ele foi pulado.'}</span></div>`;
   if(f==='perdeu')return `<div class="faixa erro"><span class="gira">${ic('gira',18)}</span><span style="flex:1">Conexão perdida com Marina. Tentando de novo…</span><button class="btn" style="height:32px" data-act="desconectar" ${dica('Sair da sessão')}>Sair</button></div>`;
   if(f==='enviando')return `<div class="faixa">${ic('arquivo',18)}<span style="flex:1">Recebendo “Making of da série”: 42%, faltam 3 min.</span><button class="ibtn" style="width:32px;height:32px" data-act="noop" ${dica('Cancelar envio')}>${ic('x',16)}</button></div>`;
   return '';
@@ -20,7 +20,7 @@ M.linhasFila=function(a,prefixo){
 };
 M.adicionar=function(){
   if(!podeAdicionar())return `<div class="faixa">${ic('cad',18)}<span>Só o dono adiciona nesta sessão.</span></div>`;
-  return `<div style="display:flex;gap:8px"><input class="campo" placeholder="Cole um link para pôr na fila" aria-label="Link para a fila"></div>`;
+  return `<div style="display:flex;gap:8px"><input class="campo" placeholder="Cole um link para pôr na fila" aria-label="Link para a fila" data-enter="add-link"><button class="btn pri" style="width:40px;padding:0;flex:none" data-act="add-link" aria-label="Pôr na fila" ${S.adicionando?'disabled':''} ${dica('Pôr na fila','Ou aperte Enter')}>${S.adicionando?`<span class="gira">${ic('gira',20)}</span>`:ic('enviar',20)}</button></div>`;
 };
 M.gente=function(a){const g=[a.id,...a.gente,'eu'];return '<span style="display:inline-flex;align-items:center">'+g.map((id,i)=>`<span style="margin-left:${i?-8:0}px;border-radius:50%;box-shadow:0 0 0 2px var(--gente-b,var(--fundo));display:inline-flex" ${dica(achar(id).nome+(id===a.id?' (dono)':''))}>${av(id,28,false)}</span>`).join('')+'</span>'};
 })();

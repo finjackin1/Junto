@@ -203,13 +203,14 @@ const entrar = async (A, n) => { await A.p.click('[data-act="entrar"]'); return 
   await A.p.click('[data-act="camada:opcoes"]');
   await foto(A.p, 'opcoes');
   conf('nome real em Opcoes', (await texto(A.p, '.mio .pedido b')) === 'Ana Souza');
+  await A.p.click('[data-act="opc:win"]'); // off by default; turning it on reveals 'min'
   await A.p.click('[data-act="opc:min"]');
   await A.p.waitForTimeout(200);
   await A.p.keyboard.press('Escape');
   await A.app.close(); programas.splice(programas.indexOf(A.app), 1);
   const A2 = await abrir('ana', portaS, portaD);
   await ate('sessao lembrada ao reabrir', () => A2.p.evaluate(() => M.S.tela === 'principal' && !M.S.carregando && M.AMIGOS.length === 1));
-  await ate('opcao lembrada ao reabrir', () => A2.p.evaluate(() => M.S.opc.min === true));
+  await ate('opcao lembrada ao reabrir', () => A2.p.evaluate(() => M.S.opc.min === true && M.S.opc.win === true));
   await A2.p.waitForTimeout(300);
   await A2.p.click('.pess');
   await A2.p.waitForSelector('.menu');

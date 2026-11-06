@@ -72,8 +72,8 @@
   const arteDe = n => Math.min(7, Math.max(0, Number(n) | 0));
   const durDe = it => (it && typeof it.dur === 'number' && it.dur > 0 ? it.dur : 0);
 
-  function faixaErroLink() {
-    S.faixa = 'erro-link';
+  function faixaErroLink(txt) {
+    S.faixa = 'erro-link'; S.faixaTxt = txt || '';
     clearTimeout(timerFaixa);
     timerFaixa = setTimeout(() => { if (S.faixa === 'erro-link') { S.faixa = null; M.desenhar(); } }, 6000);
     M.desenhar();
@@ -197,9 +197,9 @@
   }
 
   async function adicionarLink(url, tipo) {
-    if (!/^https?:\/\/\S+$/i.test(url)) return false;
+    if (!/^https?:\/\/\S+$/i.test(url)) { faixaErroLink('Isso não é um link. Cole um endereço que começa com http.'); return false; }
     const r = await J.resolver(url, tipo, 'add');
-    if (!r || !r.ok) { if (r && r.erro === 'sem_permissao') faixaErroLink(); return false; }
+    if (!r || !r.ok) { faixaErroLink(r && r.erro === 'sem_permissao' ? '' : 'Não deu pra abrir esse link.'); return false; }
     try {
       const msg = { t: 'adicionar', url, titulo: String(r.titulo || url).slice(0, 200), sub: String(r.sub || '').slice(0, 120), dur: r.dur };
       let resp = await J.enviar(msg);
@@ -320,6 +320,7 @@
       case 'remover': S.menu = null; enviar({ t: 'remover', id: v }); return true;
       case 'opc': S.opc[v] = !S.opc[v]; J.salvarOpcoes(S.opc); return true;
       case 'volume': S.mudo = !S.mudo; if (!S.mudo && S.vol === 0) S.vol = 0.5; aplicarVol(); return true;
+      case 'add-link': adicionarFila(); return true;
       case 'comecar-oferta': {
         const tipo = S.ofTipo === 'ouvir' ? 'ouvir' : 'ver';
         const modo = ['todos', 'dono', 'fila'].includes(S.ofModo) ? S.ofModo : 'todos';
@@ -365,18 +366,17 @@
   J.aoSessao(aoSnapshot);
   J.aoVideoAcao(a => { if (a === 'tocar') M.agir('tocar'); });
 
-  // Enter in the queue's add field: resolve locally, then add. Redraws keep what is typed; the field is emptied on success.
+  // Queue add (button or Enter via data-enter): resolve locally, then add. Field is emptied on success.
   const CAMPO_FILA = 'input.campo[aria-label="Link para a fila"]';
-  document.addEventListener('keydown', async e => {
-    if (e.key !== 'Enter' || !e.target.matches || !e.target.matches(CAMPO_FILA) || adicionando || !ultSessao) return;
-    e.preventDefault();
-    const url = e.target.value.trim();
-    if (!url) return;
-    adicionando = true;
+  async function adicionarFila() {
+    const k0 = document.querySelector(CAMPO_FILA);
+    const url = k0 ? k0.value.trim() : '';
+    if (!url || adicionando || !ultSessao) return;
+    adicionando = S.adicionando = true; M.desenhar();
     try {
-      if (await adicionarLink(url, ultSessao ? ultSessao.tipo : 'ouvir')) { const k = document.querySelector(CAMPO_FILA); if (k) k.value = ''; }
-    } finally { adicionando = false; }
-  });
+      if (await adicionarLink(url, ultSessao.tipo)) { const k = document.querySelector(CAMPO_FILA); if (k) k.value = ''; }
+    } finally { adicionando = S.adicionando = false; M.desenhar(); }
+  }
 
   // Click on the progress bar seeks (only where the mode lets me control).
   document.addEventListener('click', e => {
