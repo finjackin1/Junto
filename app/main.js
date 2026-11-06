@@ -3,7 +3,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, session, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, session, safeStorage, Notification } = require('electron');
 
 const { criarLog } = require('./log');
 const { criarOpcoes } = require('./opcoes');
@@ -15,6 +15,8 @@ const { criarAtualizacao } = require('./atualizacao');
 
 const env = process.env;
 const oculto = env.JUNTO_OCULTO === '1';
+// Started by Windows at logon with "Iniciar minimizado" on: stay in the tray.
+const naBandeja = process.argv.includes('--minimizado');
 const dados = env.JUNTO_DADOS || app.getPath('userData');
 if (env.JUNTO_DADOS) app.setPath('userData', env.JUNTO_DADOS);
 
@@ -144,7 +146,7 @@ function criarJanela() {
   // A 401 can arrive before the screen has loaded; the screen would then wait forever on "carregando".
   wc.on('did-finish-load', () => { if (cliente) cliente.reenviar(); if (sessaoFimPendente) enviarTela('junto:sessao-fim'); enviarTela('junto:offset', ultOffset); });
 
-  janela.once('ready-to-show', () => { if (oculto) janela.showInactive(); else janela.show(); });
+  janela.once('ready-to-show', () => { if (oculto) janela.showInactive(); else if (!naBandeja) janela.show(); });
   // Alt+F4 and the like hide to the tray; only "sair" really quits.
   janela.on('close', (e) => { if (!saindo) { e.preventDefault(); janela.hide(); } });
   // Windows shutdown/logoff: before-quit is not emitted, and hiding to the tray would block it.
@@ -152,6 +154,14 @@ function criarJanela() {
   janela.on('closed', () => { janela = null; });
 
   janela.loadFile(TELA, { hash: sessao && sessao.token() ? 'principal' : 'login' });
+}
+
+// "Iniciar com o Windows" / "Iniciar minimizado": Windows startup entry for this exe (packaged only).
+function aplicarOpcoes(o) {
+  if (!app.isPackaged || oculto || !o) return;
+  try {
+    app.setLoginItemSettings({ openAtLogin: !!o.win, path: process.execPath, args: o.min ? ['--minimizado'] : [] });
+  } catch (e) { log('opcoes: inicio com o Windows falhou', e && e.message); }
 }
 
 function criarTray() {
@@ -260,13 +270,25 @@ function registrarIpc() {
     if (acao === 'min') janela.minimize();
     else if (acao === 'fechar') janela.hide();
     else if (acao === 'sair') sairDeVez();
+    else if (acao === 'mostrar') mostrar();
   });
 
   ipcMain.handle('junto:opcoes', (ev) => (remetenteOk(ev) ? opcoes.ler() : null));
   ipcMain.handle('junto:salvar-opcoes', async (ev, obj) => {
     if (!remetenteOk(ev)) return;
-    await opcoes.salvar(obj);
+    aplicarOpcoes(await opcoes.salvar(obj));
   });
+  ipcMain.on('junto:avisar', (ev, titulo, texto) => {
+    if (!remetenteOk(ev)) return;
+    if (oculto) { log('aviso: teste', String(titulo)); return; } // tests: never pop a toast on the user's screen
+    if (!Notification.isSupported()) return;
+    const n = new Notification({ title: String(titulo || 'Junto'), body: String(texto || ''), icon: ICONE });
+    n.on('click', mostrar);
+    n.on('show', () => log('aviso: mostrado'));
+    n.on('failed', (_e, err) => log('aviso: falhou', err));
+    n.show();
+  });
+  ipcMain.handle('junto:versao', (ev) => (remetenteOk(ev) ? app.getVersion() : null));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -282,6 +304,7 @@ if (!app.requestSingleInstanceLock()) {
     if (tray) { tray.destroy(); tray = null; }
   });
 
+  app.setAppUserModelId(process.execPath); // Windows needs it to show notifications
   app.whenReady().then(() => {
     session.defaultSession.webRequest.onHeadersReceived((det, cb) => {
       cb({ responseHeaders: { ...det.responseHeaders, 'Content-Security-Policy': [CSP] } });
@@ -308,6 +331,7 @@ if (!app.requestSingleInstanceLock()) {
     registrarIpc();
     criarJanela();
     criarTray();
+    aplicarOpcoes(opcoes.ler());
     if (sessao.token()) iniciarCliente();
     atualizacao = criarAtualizacao({
       atual: app.getVersion(), log, emSessao: () => emSessao, sair: () => app.quit(),

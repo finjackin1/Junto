@@ -20,7 +20,7 @@ M.linhasFila=function(a,prefixo){
 };
 M.adicionar=function(){
   if(!podeAdicionar())return `<div class="faixa">${ic('cad',18)}<span>Só o dono adiciona nesta sessão.</span></div>`;
-  return `<div style="display:flex;gap:8px"><input class="campo" placeholder="Cole um link ou escolha um arquivo" aria-label="Link ou arquivo para a fila"><button class="btn" style="width:40px;padding:0;flex:none" data-act="noop" ${dica('Enviar arquivo','Vai do seu PC para os outros')}>${ic('arquivo',20)}</button></div>`;
+  return `<div style="display:flex;gap:8px"><input class="campo" placeholder="Cole um link para pôr na fila" aria-label="Link para a fila"></div>`;
 };
 M.gente=function(a){const g=[a.id,...a.gente,'eu'];return '<span style="display:inline-flex;align-items:center">'+g.map((id,i)=>`<span style="margin-left:${i?-8:0}px;border-radius:50%;box-shadow:0 0 0 2px var(--gente-b,var(--fundo));display:inline-flex" ${dica(achar(id).nome+(id===a.id?' (dono)':''))}>${av(id,28,false)}</span>`).join('')+'</span>'};
 })();

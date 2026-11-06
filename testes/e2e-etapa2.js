@@ -142,7 +142,14 @@ const foto = async (p, n) => {
 const entrar = async (A, n) => { await A.p.click('[data-act="entrar"]'); return ate(n + ' entrou', () => A.p.evaluate(() => M.S.tela === 'principal' && !M.S.carregando)); };
 const texto = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
 const tocaOk = p => p.evaluate(() => { const a = document.querySelector('audio'); return !!a && !a.paused && a.currentTime > 0.8; });
-const CAMPO = 'input.campo[aria-label="Link ou arquivo para a fila"]';
+const CAMPO = 'input.campo[aria-label="Link para a fila"]';
+// Dead-button check: every visible [data-act] must do something (no 'noop', no "next version" placeholder).
+const semMorto = async (X, n) => {
+  const m = await X.p.evaluate(() => [...document.querySelectorAll('#raiz [data-act]')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.height; })
+    .filter(e => e.dataset.act === 'noop' || /próxima versão/i.test(e.dataset.dica || '')).map(e => (e.dataset.dica || e.textContent).slice(0, 40)));
+  conf('sem botao morto: ' + n, m.length === 0, m);
+};
+const logDe = X => { try { return fs.readFileSync(path.join(tmp, X.conta, 'junto.log'), 'utf8'); } catch (e) { return ''; } };
 const adicionar = async (X, url) => { await X.p.fill(CAMPO, url); await X.p.press(CAMPO, 'Enter'); };
 const filaDe = (p) => p.evaluate(() => { const a = M.achar(M.S.conn); return a ? a.fila.map(f => f[0]) : null; });
 const offAudio = (p, n, passo) => p.evaluate(async ({ n, passo }) => {
@@ -176,16 +183,36 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await B.p.evaluate(() => window.junto.enviar({ t: 'aceitar', id: M.D.recebidos[0].id }));
   await ate('Ana e Beto amigos', () => A.p.evaluate(() => M.AMIGOS.length === 1 && M.AMIGOS[0].est === 'on'));
 
+  // ---- 0. options really do something; version is the real one ----
+  await semMorto(A, 'principal');
+  await B.p.click('[data-act="camada:opcoes"]');
+  const ver = require(path.join(appDir, 'package.json')).version;
+  await ate('opcoes mostram a versao real', () => B.p.evaluate(v => document.querySelector('.folha').textContent.includes('Versão ' + v) && !/Em dia/.test(document.querySelector('.folha').textContent), ver));
+  conf('sem chave Iniciar mais rapido', await B.p.evaluate(() => !document.querySelector('[data-act="opc:rap"]')));
+  await semMorto(B, 'opcoes');
+  conf('iniciar com o Windows vem desligado', await B.p.evaluate(() => !document.querySelector('[data-act="opc:min"]')));
+  await B.p.click('[data-act="opc:win"]');
+  await ate('chave salva no arquivo', () => { try { return JSON.parse(fs.readFileSync(path.join(tmp, 'beto', 'opcoes.json'), 'utf8')).win === true; } catch (e) { return false; } });
+  await ate('minimizado aparece ao ligar', () => B.p.evaluate(() => !!document.querySelector('[data-act="opc:min"]')));
+  await B.p.click('[data-act="opc:win"]');
+  await ate('chave desliga de novo', () => B.p.evaluate(() => !document.querySelector('[data-act="opc:min"]')));
+  await B.p.click('.folha [data-act="fecha-camada"]');
+  await A.p.click('[data-act="camada:amigos"]'); await semMorto(A, 'amigos'); await A.p.click('.folha [data-act="fecha-camada"]');
+
   // ---- 1. offer (ouvir, todos), card, connect ----
   await A.p.click('[data-act="camada:oferecer"]');
   await A.p.click('[data-act="oftipo:ouvir"]'); await A.p.click('[data-act="ofmodo:todos"]');
   await foto(A.p, 'oferecer');
+  await semMorto(A, 'oferecer');
+  conf('sem botao de arquivo no oferecer', await A.p.evaluate(() => !document.querySelector('[data-dica*="arquivo"]') && !/arquivo/.test(document.querySelector('.folha input.campo').placeholder)));
   await A.p.click('[data-act="comecar-oferta"]');
   await ate('Ana na propria sessao', () => A.p.evaluate(() => M.S.tela === 'sessao' && M.S.conn === 'eu'));
   conf('titulo da sessao propria: Sua sessao', await A.p.evaluate(() => document.querySelector('.topo2 .corta').textContent === 'Sua sessão'), await texto(A.p, '.topo2 .corta'));
   conf('selo mostra o modo real', (await texto(A.p, '.inf .selo')) === 'Todos controlam', await texto(A.p, '.inf .selo'));
   conf('controles ligados para o dono', await A.p.evaluate(() => !document.querySelector('[data-act="tocar"]').disabled));
   await ate('Beto ve o cartao', () => B.p.evaluate(() => !!document.querySelector('.card')));
+  await ate('Beto recebeu aviso de oferta', () => /aviso: teste .*Ana Souza disponibilizou/.test(logDe(B)));
+  conf('Ana nao se avisa da propria oferta', !/aviso: teste/.test(logDe(A)));
   await foto(B.p, 'lista-com-cartao');
   await B.p.click('.card');
   await ate('Beto entrou na sessao', () => B.p.evaluate(() => M.S.tela === 'sessao' && M.S.conn !== 'eu' && M.S.conn !== null));
@@ -202,6 +229,16 @@ async function medirSync(X, Y, nome, n = 20, passo = 500) {
   await ate('Beto ve Faixa 1', async () => (await filaDe(B.p) || []).join() === 'Faixa 1');
   await ate('Ana toca', () => tocaOk(A.p), 20000);
   await ate('Beto toca', () => tocaOk(B.p), 20000);
+  await semMorto(A, 'sessao dono'); await semMorto(B, 'sessao amigo');
+  await B.p.click('[data-act="volume"]');
+  await ate('volume: clique tira o som', () => B.p.evaluate(() => document.querySelector('audio').muted === true && localStorage.getItem('junto.mudo') === '1'));
+  conf('volume: so no PC do Beto', await A.p.evaluate(() => document.querySelector('audio').muted === false));
+  await B.p.click('[data-act="volume"]');
+  await ate('volume: clique devolve o som', () => B.p.evaluate(() => document.querySelector('audio').muted === false));
+  await B.p.hover('[data-act="volume"]'); await B.p.mouse.wheel(0, 100); await B.p.mouse.wheel(0, 100);
+  await ate('volume: roda abaixa 10%', () => B.p.evaluate(() => Math.abs(document.querySelector('audio').volume - 0.9) < 0.001 && localStorage.getItem('junto.vol') === '0.9'));
+  await B.p.mouse.wheel(0, -100); await B.p.mouse.wheel(0, -100);
+  await ate('volume: roda sobe de volta', () => B.p.evaluate(() => document.querySelector('audio').volume === 1));
   await foto(A.p, 'sessao-dono');
   await foto(B.p, 'sessao-amigo');
 

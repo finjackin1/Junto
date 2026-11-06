@@ -20,9 +20,9 @@ test('opcoes: padroes, salvar parcial, ignora lixo, persiste', async () => {
   const dir = pasta();
   const o = criarOpcoes({ dir });
   assert.deepEqual(o.ler(), PADRAO);
-  assert.deepEqual(PADRAO, { win: true, rap: true, min: false, av: true });
+  assert.deepEqual(PADRAO, { win: false, rap: true, min: false, av: true });
   await o.salvar({ min: true, win: 'sim', outra: 1 });
-  assert.deepEqual(criarOpcoes({ dir }).ler(), { win: true, rap: true, min: true, av: true });
+  assert.deepEqual(criarOpcoes({ dir }).ler(), { win: false, rap: true, min: true, av: true });
   assert.deepEqual(fs.readdirSync(dir), ['opcoes.json']); // no leftover tmp file
   fs.writeFileSync(path.join(dir, 'opcoes.json'), '{quebrado');
   assert.deepEqual(criarOpcoes({ dir }).ler(), PADRAO);

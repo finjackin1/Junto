@@ -5,7 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const PERMITIDAS = ['pedir', 'aceitar', 'recusar', 'cancelar', 'remover',
   'oferecer', 'parar', 'entrar_sessao', 'sair_sessao', 'adicionar', 'tirar', 'tocar', 'pausar', 'buscar', 'pular', 'voltar', 'fim'];
-const JANELA = ['min', 'fechar', 'sair'];
+const JANELA = ['min', 'fechar', 'sair', 'mostrar'];
 let offset = 0; // server clock minus local clock, pushed by main
 
 function ouvir(canal, cb) {
@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('junto', {
   janela: (acao) => { if (JANELA.includes(acao)) ipcRenderer.send('junto:janela', acao); },
   opcoes: () => ipcRenderer.invoke('junto:opcoes'),
   salvarOpcoes: (obj) => ipcRenderer.invoke('junto:salvar-opcoes', obj),
+  versao: () => ipcRenderer.invoke('junto:versao'),
+  avisar: (titulo, texto) => { ipcRenderer.send('junto:avisar', String(titulo).slice(0, 120), String(texto).slice(0, 200)); },
   aoEstado: (cb) => ouvir('junto:estado', cb),
   aoConexao: (cb) => ouvir('junto:conexao', cb),
   aoSessaoFim: (cb) => ouvir('junto:sessao-fim', cb),

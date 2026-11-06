@@ -18,7 +18,8 @@ const IC = {
   add:'<circle cx="10" cy="8" r="3.500"/><path d="M4 20c0-3.300 2.700-6 6-6 1.300 0 2.500.4 3.500 1.100M18 14v6M15 17h6"/>',
   coroa:'<path d="M4 18h16l1-11-5 4-4-6-4 6-5-4z"/>', cad:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   fila:'<path d="M4 6h16M4 12h10M4 18h10"/><path class="c" d="M17 13v6l4-3z"/>',
-  som:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.500 6.500a8 8 0 0 1 0 11"/>',
+  mudo:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9.500l5 5M21 9.500l-5 5"/>',
+ som:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.500 6.500a8 8 0 0 1 0 11"/>',
   cheia:'<path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/>',
   aviso:'<path d="M12 4L2.500 20h19z"/><path d="M12 10v4M12 17v.5"/>', sair:'<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/>',
   gira:'<path d="M12 3a9 9 0 1 0 9 9"/>', sino:'<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
@@ -47,7 +48,7 @@ const eq=(parado)=>`<span class="eq${parado?' parado':''}"><i></i><i></i><i></i>
 const tipoNome=t=>t==='ver'?'Ouvir e ver':'Ouvir';
 const dica=(a,b)=>`data-dica="${a}${b?'|'+b:''}"`;
 
-const S={tela:'principal',conn:null,tocando:true,pos:0,camada:null,menu:null,aviso:null,faixa:null,ofTipo:'ver',ofModo:'todos',oferecendo:false,meuFila:[],videoAberto:false,sel:0,tentando:false,sessaoAberta:true,opc:{win:true,min:false,rap:true,av:true}};
+const S={tela:'principal',conn:null,tocando:true,pos:0,camada:null,menu:null,aviso:null,faixa:null,ofTipo:'ver',ofModo:'todos',oferecendo:false,meuFila:[],videoAberto:false,sel:0,tentando:false,sessaoAberta:true,opc:{win:false,min:false,rap:true,av:true}};
 let ultimaTela=null,ultimaCam=null,P=null,ponteF=null;
 
 /* ---------- telas comuns ---------- */
@@ -74,7 +75,7 @@ function folhaOferecer(){const a=S.ofTipo,m=S.ofModo;return `<div class="vela" d
   ${Object.keys(MODOS).map(k=>`<button class="opcao${m===k?' sel':''}" data-act="ofmodo:${k}" ${dica(MODOS[k][0],MODOS[k][1])}><span class="ca"></span><span><b style="font-weight:600;display:block">${MODOS[k][0]}</b><span class="fra" style="font-size:12px;line-height:16px">${MODOS[k][1]}</span></span></button>`).join('')}
  </div>
  <div class="fra" style="margin-bottom:8px">O que vai tocar</div>
- <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link ou escolha um arquivo" aria-label="Link ou arquivo"><button class="btn" style="width:40px;padding:0;flex:none" data-act="noop" ${dica('Escolher arquivo','Vídeo ou música do seu PC')}>${ic('arquivo',20)}</button></div>
+ <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link do YouTube ou de outro site" aria-label="Link"></div>
  <button class="btn pri larga" data-act="comecar-oferta" ${dica('Disponibilizar','Seus amigos passam a ver na lista')}>Disponibilizar</button>
  </div></div>`}
 function folhaAmigos(){return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Adicionar amigos</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
@@ -88,8 +89,8 @@ function folhaAmigos(){return `<div class="vela" data-act="fecha-camada"></div><
 function folhaOpcoes(){const o=S.opc,l=(k,t,s)=>`<div class="linha-op"><div><div>${t}</div><div class="fra" style="font-size:12px;line-height:16px">${s}</div></div><button class="chave${o[k]?' lig':''}" role="switch" aria-checked="${!!o[k]}" data-act="opc:${k}" ${dica(t,s)}></button></div>`;
  return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Opções</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
  <div class="mio"><div class="pedido" style="margin-bottom:8px">${av(EU,40,false)}<div style="flex:1"><b style="font-weight:600">${EU.conta}</b><div class="fra">Conta do Discord</div></div><button class="btn" style="height:32px" data-act="sair-conta" ${dica('Sair da conta','Volta para a tela de entrada')}>Sair</button></div>
- ${l('win','Iniciar com o Windows','Fica na bandeja, pronto para avisar')}${o.win?l('rap','Iniciar mais rápido','Abre já no logon, sem esperar a área de trabalho').replace('class="linha-op"','class="linha-op" style="padding-left:16px"'):''}${l('min','Iniciar minimizado','Abre direto na bandeja')}${l('av','Avisar quando um amigo disponibilizar','Aparece um aviso no canto da tela')}
- <div class="linha-op"><div><div>Versão 0.1.0</div><div class="fra" style="font-size:12px;line-height:16px">Atualiza sozinho</div></div><span class="selo">${ic('fones',14)}Em dia</span></div>
+ ${l('win','Iniciar com o Windows','Abre sozinho quando você liga o PC')}${o.win?l('min','Iniciar minimizado','Ao ligar o PC, fica só na bandeja').replace('class="linha-op"','class="linha-op" style="padding-left:16px"'):''}${l('av','Avisar quando um amigo disponibilizar','Aparece um aviso no canto da tela')}
+ <div class="linha-op"><div><div>Versão ${S.versao||'0.1.1'}</div><div class="fra" style="font-size:12px;line-height:16px">Quando sai versão nova, ela entra sozinha ao fechar o Junto</div></div></div>
  </div></div>`}
 function camada(){return S.camada==='oferecer'?folhaOferecer():S.camada==='amigos'?folhaAmigos():S.camada==='opcoes'?folhaOpcoes():S.camada==='p:fila'&&P.folhaFila?P.folhaFila(S):''}
 function menuAmigo(){if(!S.menu)return '';const a=achar(S.menu);return `<div class="menu" style="right:12px;top:${S.menuY||160}px">

@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const PADRAO = Object.freeze({ win: true, rap: true, min: false, av: true });
+const PADRAO = Object.freeze({ win: false, rap: true, min: false, av: true });
 
 function sanear(obj, base) {
   const saida = { ...base };

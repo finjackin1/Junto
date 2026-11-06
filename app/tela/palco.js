@@ -25,10 +25,10 @@ M.iniciar({
    <div style="padding:8px 16px 8px"><div class="barra-p"><i data-pos style="width:${s.pos/a.dur*100}%;background:var(--acento)"></i></div><div class="tempo"><span data-t1>${hms(s.pos)}</span><span>${hms(a.dur)}</span></div></div>
    <div class="ctlb"><button class="ibtn" ${c?'':'disabled'} data-act="voltar" ${dica('Voltar')}>${ic('ant')}</button><button class="grande" ${c?'':'disabled'} data-act="tocar" ${dica(s.tocando?'Pausar':'Tocar',c?'Espaço':'Só o dono controla')}>${ic(s.tocando?'pausa':'play',22)}</button><button class="ibtn" ${c?'':'disabled'} data-act="pular" ${dica('Próxima')}>${ic('prox')}</button><span style="flex:1"></span>
     ${a.tipo==='ver'?`<button class="btn" style="height:36px;padding:0 12px" data-act="ver-video" ${dica('Abrir vídeo','Abre em outra janela')}>${ic('tela',16)}Ver</button>`:`<span class="selo">${ic('fones',14)}Só som</span>`}
-    <button class="ibtn" data-act="noop" ${dica('Volume')}>${ic('som')}</button></div>
+    <button class="ibtn" data-act="volume" data-vol ${dica(s.mudo?'Sem som':'Volume '+Math.round((s.vol??1)*100)+'%',s.mudo?'Clique para voltar o som':'Clique: tirar o som. Roda do mouse: ajustar')}>${ic(s.mudo?'mudo':'som')}</button></div>
    ${M.faixaEstado()?`<div style="padding:0 16px 8px">${M.faixaEstado()}</div>`:''}
    <div class="tabf"><b style="font-weight:600">Fila</b><span class="fra">${a.fila.length}</span></div>${M.linhasFila(a)}
    <div style="padding:12px 16px">${M.adicionar()}</div></div></div>`},
- agir(c){if(c==='ver-video')S.tela='video'},
+ agir(c){if(c==='ver-video')S.tela='video';if(c==='volume')S.mudo=!S.mudo},
  esc(s){s.tela='principal'}
 });

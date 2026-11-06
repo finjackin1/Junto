@@ -80,7 +80,7 @@ async function abrir(conta) {
 const entrar = async (A, n) => { await A.p.click('[data-act="entrar"]'); return ate(n + ' entrou', () => A.p.evaluate(() => M.S.tela === 'principal' && !M.S.carregando)); };
 const texto = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
 const tocaOk = p => p.evaluate(() => { const a = document.querySelector('audio'); return !!a && !a.paused && a.currentTime > 0.8; });
-const CAMPO = 'input.campo[aria-label="Link ou arquivo para a fila"]';
+const CAMPO = 'input.campo[aria-label="Link para a fila"]';
 const adicionar = async (X, url) => { await X.p.fill(CAMPO, url); await X.p.press(CAMPO, 'Enter'); };
 const filaDe = (p) => p.evaluate(() => { const a = M.achar(M.S.conn); return a ? a.fila.map(f => f[0]) : null; });
 const offAudio = (p, n, passo) => p.evaluate(async ({ n, passo }) => {

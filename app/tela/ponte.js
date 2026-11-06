@@ -50,6 +50,21 @@
   const audio = document.createElement('audio');
   audio.preload = 'auto';
   document.body.appendChild(audio); // no controls: never drawn, and outside #raiz so redraws keep it
+  // Volume: local to this PC, remembered between runs. Button = mute, mouse wheel on it = 5% steps.
+  const volSalvo = Number(localStorage.getItem('junto.vol'));
+  S.vol = Number.isFinite(volSalvo) && localStorage.getItem('junto.vol') !== null ? Math.min(1, Math.max(0, volSalvo)) : 1;
+  S.mudo = localStorage.getItem('junto.mudo') === '1';
+  const aplicarVol = () => {
+    audio.volume = S.vol; audio.muted = S.mudo;
+    localStorage.setItem('junto.vol', String(S.vol)); localStorage.setItem('junto.mudo', S.mudo ? '1' : '0');
+  };
+  aplicarVol();
+  document.addEventListener('wheel', e => {
+    if (!(e.target.closest && e.target.closest('[data-vol]'))) return;
+    e.preventDefault();
+    S.vol = Math.round(Math.min(1, Math.max(0, S.vol + (e.deltaY < 0 ? 0.05 : -0.05))) * 100) / 100;
+    S.mudo = S.vol === 0; aplicarVol(); M.desenhar();
+  }, { passive: false });
   const sincA = Sin.criarSincronizador(audio, { agora: () => J.agoraServidor() });
   audio.addEventListener('loadedmetadata', () => { carregado = true; });
   audio.addEventListener('ended', () => enviarFim());
@@ -223,7 +238,20 @@
   });
   textoProprio.observe(raizTela, { childList: true, subtree: true });
 
+  // "Avisar quando um amigo disponibilizar": Windows notification when a friend's offer appears (not on the first list).
+  let ofertasAntes = null;
+  function avisarOfertas(amigos) {
+    const agora = new Map(amigos.filter(a => a.oferta && typeof a.oferta === 'object').map(a => [a.id, a]));
+    if (ofertasAntes && S.opc.av && J.avisar) {
+      for (const [id, a] of agora) {
+        if (!ofertasAntes.has(id)) J.avisar(`${a.nome || a.usuario || 'Um amigo'} disponibilizou`, String(a.oferta.titulo || ''));
+      }
+    }
+    ofertasAntes = new Set(agora.keys());
+  }
+
   function aplicar(e) {
+    avisarOfertas(e.amigos);
     AMIGOS.length = 0;
     meuId = e.eu.id;
     if (ultSessao && !e.sessao) { parar(); if (S.tela === 'sessao') S.tela = 'principal'; S.faixa = null; } // the server says I am in no session any more
@@ -291,6 +319,7 @@
       case 'cancelar': enviar({ t: 'cancelar', usuario: v }); return true;
       case 'remover': S.menu = null; enviar({ t: 'remover', id: v }); return true;
       case 'opc': S.opc[v] = !S.opc[v]; J.salvarOpcoes(S.opc); return true;
+      case 'volume': S.mudo = !S.mudo; if (!S.mudo && S.vol === 0) S.vol = 0.5; aplicarVol(); return true;
       case 'comecar-oferta': {
         const tipo = S.ofTipo === 'ouvir' ? 'ouvir' : 'ver';
         const modo = ['todos', 'dono', 'fila'].includes(S.ofModo) ? S.ofModo : 'todos';
@@ -337,7 +366,7 @@
   J.aoVideoAcao(a => { if (a === 'tocar') M.agir('tocar'); });
 
   // Enter in the queue's add field: resolve locally, then add. Redraws keep what is typed; the field is emptied on success.
-  const CAMPO_FILA = 'input.campo[aria-label="Link ou arquivo para a fila"]';
+  const CAMPO_FILA = 'input.campo[aria-label="Link para a fila"]';
   document.addEventListener('keydown', async e => {
     if (e.key !== 'Enter' || !e.target.matches || !e.target.matches(CAMPO_FILA) || adicionando || !ultSessao) return;
     e.preventDefault();
@@ -362,6 +391,7 @@
   J.aoConexao(s => { S.offline = s !== 'on'; if (S.offline) S.carregando = false; M.desenhar(); });
   J.aoSessaoFim(() => { limpar(); S.tela = 'login'; M.desenhar(); });
   J.opcoes().then(o => { Object.assign(S.opc, o); M.desenhar(); });
+  if (J.versao) J.versao().then(v => { if (v) { S.versao = v; M.desenhar(); } });
 
   // Close button: click = tray, hold 1 s = quit. Listens on document because every redraw replaces the button.
   let tempo = null, saiu = false;
