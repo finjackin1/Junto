@@ -39,17 +39,26 @@
 .vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--t1);border:0}
 .vol:focus-visible{outline:2px solid var(--acento);outline-offset:4px}
 .ctlb .btn:disabled{opacity:.5;cursor:not-allowed}
+.vivo{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:12px;background:rgba(255,107,107,.15);color:#FFB3B3;font-size:12px;line-height:16px;font-weight:600;white-space:nowrap}
+.vivo .ic{color:var(--vermelho)}
+.selo.fg.vivo{background:rgba(0,0,0,.45);color:#fff}
 </style></head><body><div id="raiz"></div>
 <script src="motor.js"></script><script src="sessao-comum.js"></script><script>
 const {ic,av,eq,achar,AMIGOS,S,dica,hms,podeControlar}=M;
 const modoTxt=a=>'Só '+a.nome+' controla nesta sessão';
 function card(a){return `<button class="card arte a${a.arte}" data-lista data-act="conectar:${a.id}" data-menu="${a.id}" ${dica('Conectar em '+a.nome,'Botão direito: mais opções')}>
   <span class="veu"></span>
-  <span class="cima"><span class="selo fg">${ic(a.tipo==='ver'?'tela':'fones',14)}${M.tipoNome(a.tipo)}</span>${a.gente.length?`<span class="selo fg">${ic('pessoas',14)}${a.gente.length+1}</span>`:''}</span>
+  <span class="cima"><span style="display:flex;gap:4px"><span class="selo fg">${ic(a.tipo==='ver'?'tela':'fones',14)}${M.tipoNome(a.tipo)}</span>${a.aoVivo?`<span class="selo fg vivo">${ic('vivo',14)}Ao vivo</span>`:''}</span>${a.gente.length?`<span class="selo fg">${ic('pessoas',14)}${a.gente.length+1}</span>`:''}</span>
   <span class="baixo"><span class="dono" style="margin-bottom:4px">${av(a,24,false)}${a.nome}<span style="color:#fff">${eq()}</span></span><span class="corta" style="display:block;font:600 16px/24px 'Segoe UI Variable Display','Segoe UI',sans-serif;padding-right:48px">${a.titulo||'<span style="opacity:.75">Ainda sem nada na fila</span>'}</span></span>
   <span class="pega">${ic('play',18)}</span></button>`}
 function pess(a){return `<button class="pess" data-lista data-act="menu:${a.id}" data-menu="${a.id}" ${dica(a.nome,a.est==='on'?'Online, sem nada disponível':'Offline')}>${av(a,44)}<span class="corta" style="max-width:48px">${a.nome}</span></button>`}
 function bar(){const a=achar(S.conn);return `<button class="flut-bar arte a${a.arte}" data-act="sessao" ${dica('Abrir sessão','Fila, controles e vídeo')}><span class="tinta"></span><span class="mini arte a${a.arte}" style="border-radius:10px"></span><span class="corta" style="flex:1"><span class="corta" style="display:block;font-weight:600">${a.titulo||'Nada tocando'}</span><span class="corta" style="display:block;font-size:12px;line-height:16px;opacity:.8">${a.id==='eu'?'Sua sessão':'com '+a.nome}</span></span>${eq(!S.tocando)}<span class="ibtn" style="color:#fff">${ic('cima')}</span></button>`}
+/* Live session: no queue; the dono picks how the video is cut, a member just sees who is sharing. */
+function aoVivoBaixo(a,eu,s){
+ const caiu=s.aoVivoCaiu&&!s.offline?`<div style="padding:0 16px 8px"><div class="faixa esp"><span class="gira">${ic('gira',18)}</span><span style="flex:1">A transmissão caiu. Reconectando…</span></div></div>`:'';
+ if(!eu)return `${caiu}<div style="padding:8px 16px" class="fra">Você ${a.tipo==='ver'?'ouve e vê':'ouve'} ao vivo o que ${a.nome} tem aberto no navegador. Quem pausa e troca é ${a.nome}.</div>`;
+ const seg=a.tipo==='ver'?`<div class="linha-op" style="margin:0 16px"><div><div>Área do vídeo</div><div class="fra" style="font-size:12px;line-height:16px">${s.recorte==='inteira'?'A janela toda':'Só o vídeo da página'}</div></div><div class="segm" role="radiogroup" aria-label="Área do vídeo"><button class="${s.recorte!=='inteira'?'sel':''}" role="radio" aria-checked="${s.recorte!=='inteira'}" data-act="recorte:auto" ${dica('Automática','Corta só o vídeo da página')}>Automática</button><button class="${s.recorte==='inteira'?'sel':''}" role="radio" aria-checked="${s.recorte==='inteira'}" data-act="recorte:inteira" ${dica('Janela inteira','Mostra tudo, inclusive a página em volta')}>Janela inteira</button></div></div>`:'';
+ return `${caiu}${seg}<div style="padding:8px 16px" class="fra">${a.tipo==='ver'?'Seus amigos ouvem e veem':'Seus amigos ouvem'} o que toca nessa janela. Pause e troque no seu navegador; fechar a janela encerra a sessão.</div>`}
 M.iniciar({
  principal(s){
   const topo=`<div class="topo"><div class="tit" style="flex:1">Agora</div>${s.conn&&s.conn!=='eu'?`<button class="ibtn" data-act="camada:oferecer" ${dica("Disponibilizar","Escolha o que seus amigos podem ouvir ou ver")}>${ic("mais")}</button>`:""}<button class="ibtn" data-act="camada:amigos" ${dica('Adicionar amigos')}>${ic('add')}</button><button class="ibtn" data-act="camada:opcoes" ${dica('Opções')}>${ic('ajustes')}</button></div>`;
@@ -60,19 +69,19 @@ M.iniciar({
   const of=s.semOf?[]:AMIGOS.filter(a=>a.tipo),res=AMIGOS.filter(a=>s.semOf||!a.tipo);
   return `${topo}${off}<div class="rola entra" style="padding-bottom:88px"><div style="padding:0 16px">${of.length?of.map(card).join(''):`<div class="semof"><span style="color:var(--t3)">${ic('fones',32)}</span><div class="tit">Ninguém disponibilizando agora</div><div class="sub">Quando um amigo disponibilizar algo, aparece aqui.</div></div>`}</div>
    ${res.length?`<div class="sec" style="padding-top:8px"><span>Sem nada agora</span><span>${res.length}</span></div><div class="tira">${res.map(pess).join('')}</div>`:''}</div>${s.conn?bar():flut}`},
- sessao(s){const a=achar(s.conn),eu=a.id==='eu',tem=a.fila.length>0,c=podeControlar()&&tem&&!s.offline,v=s.mudo?0:Math.round((s.vol??1)*100);
+ sessao(s){const a=achar(s.conn),eu=a.id==='eu',vivo=!!a.aoVivo,tem=vivo||a.fila.length>0,c=!vivo&&podeControlar()&&tem&&!s.offline,v=s.mudo?0:Math.round((s.vol??1)*100);
   const porque=s.offline?'Sem conexão agora':!tem?'A fila está vazia':modoTxt(a);
   return `<div class="rola" style="display:flex;flex-direction:column"><div class="palco"><div class="luz arte a${a.arte}"></div><div class="veu"></div>
     <div class="topo2"><button class="ibtn" data-act="inicio" ${dica('Voltar para a lista','O som continua. Esc')}>${ic('baixo')}</button><span class="corta" style="flex:1;font-weight:600;text-align:center">${eu?'Sua sessão':'Com '+a.nome}</span><button class="ibtn" data-act="desconectar" ${eu?dica('Encerrar sessão','Para para todo mundo; quem está conectado volta para a lista'):dica('Sair da sessão','Para de tocar no seu PC')}>${ic('sair')}</button></div>
-    <div class="inf"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;--gente-b:transparent">${M.gente(a)}${M.seloModo(a)}</div><div class="tit" style="font-size:24px;line-height:32px;white-space:normal">${tem?a.titulo:'Nada tocando'}</div><div class="sub corta">${tem?a.sub:(M.podeAdicionar()?'Cole um link aqui embaixo para começar':'Esperando '+a.nome+' pôr algo na fila')}</div></div></div>
+    <div class="inf"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;--gente-b:transparent">${M.gente(a)}${vivo?`<span class="vivo" ${dica('Ao vivo',eu?'Você controla no seu navegador':a.nome+' controla no navegador dele')}>${ic('vivo',14)}Ao vivo</span>`:M.seloModo(a)}</div><div class="tit" style="font-size:24px;line-height:32px;white-space:normal">${tem?a.titulo:'Nada tocando'}</div><div class="sub corta">${tem?a.sub:(M.podeAdicionar()?'Cole um link aqui embaixo para começar':'Esperando '+a.nome+' pôr algo na fila')}</div></div></div>
    <div class="entra" style="flex:1;display:flex;flex-direction:column">
-   <div style="padding:8px 16px 8px"><div class="barra-p"${c?'':' style="cursor:default"'}><i data-pos style="width:${a.dur?s.pos/a.dur*100:0}%;background:var(--acento)"></i></div><div class="tempo"><span data-t1>${tem?hms(s.pos):'--:--'}</span><span>${a.dur?hms(a.dur):'--:--'}</span></div></div>
-   <div class="ctlb"><button class="ibtn" ${c?'':'disabled'} data-act="voltar" ${dica('Voltar ao começo',c?'':porque)}>${ic('ant')}</button><button class="grande" ${c?'':'disabled'} data-act="tocar" ${dica(s.tocando?'Pausar':'Tocar',c?'Espaço':porque)}>${ic(s.tocando?'pausa':'play',22)}</button><button class="ibtn" ${c?'':'disabled'} data-act="pular" ${dica('Próxima',c?'':porque)}>${ic('prox')}</button><span style="flex:1"></span>
+   ${vivo?'':`<div style="padding:8px 16px 8px"><div class="barra-p"${c?'':' style="cursor:default"'}><i data-pos style="width:${a.dur?s.pos/a.dur*100:0}%;background:var(--acento)"></i></div><div class="tempo"><span data-t1>${tem?hms(s.pos):'--:--'}</span><span>${a.dur?hms(a.dur):'--:--'}</span></div></div>`}
+   <div class="ctlb"${vivo?' style="padding-top:12px"':''}>${vivo?'<span style="flex:1"></span>':`<button class="ibtn" ${c?'':'disabled'} data-act="voltar" ${dica('Voltar ao começo',c?'':porque)}>${ic('ant')}</button><button class="grande" ${c?'':'disabled'} data-act="tocar" ${dica(s.tocando?'Pausar':'Tocar',c?'Espaço':porque)}>${ic(s.tocando?'pausa':'play',22)}</button><button class="ibtn" ${c?'':'disabled'} data-act="pular" ${dica('Próxima',c?'':porque)}>${ic('prox')}</button><span style="flex:1"></span>`}
     ${a.tipo==='ver'?`<button class="btn" style="height:36px;padding:0 12px" ${tem?'':'disabled'} data-act="ver-video" ${dica('Abrir vídeo',tem?'Abre em outra janela':'A fila está vazia')}>${ic('tela',16)}Ver</button>`:`<span class="selo" ${dica('Só som','Esta sessão não tem vídeo')}>${ic('fones',14)}Só som</span>`}
     <button class="ibtn" data-act="volume" data-vol ${dica(s.mudo?'Sem som':'Volume '+v+'%',s.mudo?'Clique para voltar o som':'Clique: tirar o som')}>${ic(s.mudo?'mudo':'som')}</button><input class="vol" type="range" min="0" max="100" step="1" value="${v}" style="--v:${v}%" data-vol aria-label="Volume"></div>
    ${M.faixaEstado()?`<div style="padding:0 16px 8px">${M.faixaEstado()}</div>`:''}
-   <div class="tabf"><b style="font-weight:600">Fila</b><span class="fra">${a.fila.length}</span></div>${M.linhasFila(a)}
-   <div style="padding:12px 16px">${M.adicionar()}</div></div></div>`},
+   ${vivo?aoVivoBaixo(a,eu,s):`<div class="tabf"><b style="font-weight:600">Fila</b><span class="fra">${a.fila.length}</span></div>${M.linhasFila(a)}
+   <div style="padding:12px 16px">${M.adicionar()}</div>`}</div></div>`},
  agir(c){if(c==='ver-video')S.tela='video';if(c==='volume')S.mudo=!S.mudo},
  esc(s){s.tela='principal'}
 });

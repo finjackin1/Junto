@@ -12,6 +12,7 @@ Responses: 200 {token, eu}; 400 {erro:"pedido_invalido"}; 401 {erro:"discord_rec
 - GET /saude -> 200 {ok:true}
 - POST /entrar (above). Handled in the stateless Worker until Discord has confirmed; only then touches the DO, so spam never wakes it. Body limit 4 KB.
 - POST /sair, Authorization: Bearer token -> 204; deletes session, closes its sockets.
+- GET /turn, Authorization: Bearer token -> {iceServers:[turn/turns, username, credential]} from Cloudflare Realtime TURN (24 h credentials; secrets TURN_KEY_ID + TURN_KEY_TOKEN via `wrangler secret put`); no secrets -> {iceServers:[]}; 401 if session invalid. Used by live share, the app caches it 12 h.
 - GET /ws upgrade, Authorization: Bearer token -> 101, or 401 {erro:"sessao_invalida"} if invalid/expired.
 - Anything else 404 {erro:"nao_encontrado"}.
 
@@ -82,3 +83,22 @@ junto.enviar allow-list += oferecer parar entrar_sessao sair_sessao adicionar ti
 junto.resolver(url, tipo) -> Promise<{ok:true, titulo, sub, dur, audio, video?} | {ok:false, erro:"sem_permissao"|"falhou"}> (main process, yt-dlp -J --no-playlist, timeout 30 s).
 junto.agoraServidor() -> number (sync, preload keeps offset pushed from main). junto.aoSessao(cb).
 Video window: separate BrowserWindow (16:9, resizable), opened by "Ver"; plays the video element; main window keeps the audio element. Esc or close returns.
+
+# Stage 3 contract: live share of a window (fonte "aba")
+
+## Offer
+- {t:"oferecer",n,tipo,modo,fonte:"aba",titulo}: live offer; titulo = window title without the browser name (max 200). Server keeps aba = {titulo, arte (0..7 from hash of titulo)}; fila/P unused. fonte "fila" or absent = normal queue offer; anything else "pedido_invalido".
+- estado oferta gains fonte: "fila" | "aba" (live: titulo = aba.titulo). Snapshot {t:"sessao"} gains fonte and aba ({titulo, arte} | null).
+- Survives server restart (column ofertas.aba JSON). An "aba" offer of mine found while nothing is being captured (previous run) is ended by the app (parar).
+
+## Signaling (WebRTC, one peer connection per member, dono -> member, video + audio tracks)
+- {t:"sinal",n,para,dados:{tipo:"quero"|"oferta"|"resposta"|"fim", id?, sdp?}}: relayed as {t:"sinal",de,dados} only between the dono and a member of the same live session, receiver online; else "nao_encontrado". id ^[A-Za-z0-9_-]{1,32}$, sdp max 15000 chars (ICE gathered before sending, no trickle).
+- Member sends quero to the dono; dono answers oferta; member answers resposta; fim closes. Dono closes links of people no longer in gente.
+
+## Capture (dono PC)
+- Video: desktopCapturer window source picked in the offer sheet (junto.fontes -> [{id, nome, exe, navegador, miniatura data URL}], junto.escolherFonte(id)). Page area auto-detected and cropped (Automática) or whole window (Janela inteira); dono can switch while live.
+- Audio: app/nativo/junto-audio.exe, process loopback of the window's process tree (Windows 10 2004+), PCM to main then screen; undoes the mixer volume and levels (AGC up to 16x, limiter). Failure: video only + warning.
+- Window closed: offer ends with a warning. Member link lost: "A transmissão caiu. Reconectando…" banner while it retries.
+
+## App bridge additions
+junto.enviar allow-list += sinal. junto.fontes(), junto.escolherFonte(id|null, sistema), junto.audio("iniciar"|"parar"), junto.aoAudioPcm(cb), junto.aoAudioEstado(cb "ok"|"erro"), junto.aoSinal(cb), junto.local(d) / junto.aoLocal(cb) (main <-> video window WebRTC link carrying the live video).

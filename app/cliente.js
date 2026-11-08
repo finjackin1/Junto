@@ -5,7 +5,7 @@ const WS = require('ws');
 const { criarRelogio } = require('./tela/sincronia');
 
 const PERMITIDAS = ['pedir', 'aceitar', 'recusar', 'cancelar', 'remover',
-  'oferecer', 'parar', 'entrar_sessao', 'sair_sessao', 'adicionar', 'tirar', 'tocar', 'pausar', 'buscar', 'pular', 'voltar', 'fim'];
+  'oferecer', 'parar', 'entrar_sessao', 'sair_sessao', 'adicionar', 'tirar', 'tocar', 'pausar', 'buscar', 'pular', 'voltar', 'fim', 'sinal'];
 const POR_USUARIO = ['pedir', 'cancelar'];
 const POR_ID = ['aceitar', 'recusar', 'remover'];
 const ATRASOS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -20,7 +20,19 @@ function validarSessao(msg) {
   if (SEM_CAMPOS.includes(t)) return { t };
   if (t === 'oferecer') {
     if (!['ouvir', 'ver'].includes(msg.tipo) || !['todos', 'dono', 'fila'].includes(msg.modo)) return null;
+    if (msg.fonte === 'aba') return { t, tipo: msg.tipo, modo: msg.modo, fonte: 'aba', titulo: typeof msg.titulo === 'string' ? msg.titulo.slice(0, 200) : '' };
     return { t, tipo: msg.tipo, modo: msg.modo };
+  }
+  if (t === 'sinal') {
+    const d = msg.dados;
+    if (typeof msg.para !== 'string' || !/^[0-9]{1,32}$/.test(msg.para) || !d || typeof d !== 'object') return null;
+    if (!['quero', 'oferta', 'resposta', 'fim'].includes(d.tipo)) return null;
+    if (d.id !== undefined && !(typeof d.id === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(d.id))) return null;
+    if (d.sdp !== undefined && !txt(d.sdp, 15000)) return null;
+    const dados = { tipo: d.tipo };
+    if (d.id !== undefined) dados.id = d.id;
+    if (d.sdp !== undefined) dados.sdp = d.sdp;
+    return { t, para: msg.para, dados };
   }
   if (t === 'entrar_sessao') return typeof msg.dono === 'string' && /^[0-9]{1,32}$/.test(msg.dono) ? { t, dono: msg.dono } : null;
   if (t === 'tirar') return typeof msg.id === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(msg.id) ? { t, id: msg.id } : null;
@@ -66,6 +78,7 @@ function criarCliente({
   aoSessaoFim = () => {},
   aoSessao = () => {}, // stage 2: {t:"sessao"} snapshots and ends
   aoOffset = () => {}, // stage 2: clock offset (ms) changed
+  aoSinal = () => {}, // live tab share: {t:"sinal",de,dados} relayed WebRTC messages
   intervaloHora = 30000,
   horaPings = 5,
   horaEntre = 200,
@@ -203,6 +216,8 @@ function criarCliente({
       } else if (m.t === 'sessao') {
         ultimaSessao = m.fim ? null : m;
         aoSessao(m);
+      } else if (m.t === 'sinal') {
+        if (typeof m.de === 'string' && m.dados && typeof m.dados === 'object') aoSinal({ de: m.de, dados: m.dados });
       } else if (m.t === 'resposta' && pendentes.has(m.n)) {
         const p = pendentes.get(m.n);
         pendentes.delete(m.n);

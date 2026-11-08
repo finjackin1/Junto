@@ -37,3 +37,6 @@
 .vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--t1);border:0}
 .vol:focus-visible{outline:2px solid var(--acento);outline-offset:4px}
 .ctlb .btn:disabled{opacity:.5;cursor:not-allowed}
+.vivo{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:12px;background:rgba(255,107,107,.15);color:#FFB3B3;font-size:12px;line-height:16px;font-weight:600;white-space:nowrap}
+.vivo .ic{color:var(--vermelho)}
+.selo.fg.vivo{background:rgba(0,0,0,.45);color:#fff}

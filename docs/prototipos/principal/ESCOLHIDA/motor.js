@@ -5,6 +5,10 @@ window.M = (function(){
 const IC = {
   fones:'<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/>',
   tela:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  janela:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M6.5 6.5h.5M9 6.5h.5"/>',
+  vivo:'<circle class="c" cx="12" cy="12" r="2.5"/><path d="M8.2 8.2a5.400 5.400 0 0 0 0 7.600M15.800 8.200a5.400 5.400 0 0 1 0 7.600M5.300 5.300a9.500 9.500 0 0 0 0 13.400M18.700 5.300a9.500 9.500 0 0 1 0 13.400"/>',
+  atualizar:'<path d="M20 12a8 8 0 1 1-2.340-5.660"/><path d="M20 4v5h-5"/>',
+  corte:'<path d="M7 3v14h14M3 7h14v14"/>',
   play:'<path class="c" d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/>',
   pausa:'<rect class="c" x="6" y="4" width="4.5" height="16" rx="1.2"/><rect class="c" x="13.5" y="4" width="4.5" height="16" rx="1.2"/>',
   prox:'<path class="c" d="M5 5v14a1 1 0 0 0 1.5.8L16 13v6h3V5h-3v6L6.5 4.2A1 1 0 0 0 5 5z"/>',
@@ -49,7 +53,7 @@ const eq=(parado)=>`<span class="eq${parado?' parado':''}"><i></i><i></i><i></i>
 const tipoNome=t=>t==='ver'?'Ouvir e ver':'Ouvir';
 const dica=(a,b)=>`data-dica="${a}${b?'|'+b:''}"`;
 
-const S={tela:'principal',conn:null,tocando:true,pos:0,camada:null,menu:null,aviso:null,faixa:null,ofTipo:'ver',ofModo:'todos',oferecendo:false,meuFila:[],videoAberto:false,sel:0,tentando:false,sessaoAberta:true,opc:{win:false,min:false,rap:true,av:true}};
+const S={tela:'principal',conn:null,tocando:true,pos:0,camada:null,menu:null,aviso:null,faixa:null,ofTipo:'ver',ofModo:'todos',ofFonte:'link',ofJanela:null,janelas:null,recorte:'auto',oferecendo:false,meuFila:[],videoAberto:false,sel:0,tentando:false,sessaoAberta:true,opc:{win:false,min:false,rap:true,av:true}};
 let ultimaTela=null,ultimaCam=null,P=null,ponteF=null;
 
 /* ---------- telas comuns ---------- */
@@ -65,19 +69,29 @@ function login(){const e=S.tela;return `<div class="centro entra">
   ?`<button class="btn larga" data-act="cancelar-login" ${dica('Cancelar','Volta para a tela de entrada')}><span class="gira">${ic('gira',18)}</span>Esperando o Discord… cancelar</button><div class="fra">Confirme no navegador que abriu.</div>`
   :`<button class="btn discord larga" data-act="entrar" ${dica('Entrar com o Discord','Abre o navegador para você confirmar')}>${ic('discord',20)}${e==='erro-login'?'Tentar de novo':'Entrar com o Discord'}</button><div class="fra">O Junto só lê seu nome e sua foto.</div>`}
  </div>`}
-function folhaOferecer(){const a=S.ofTipo,m=S.ofModo;return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Disponibilizar</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
+/* Windows the dono can share live (sample; the app bridge fills S.janelas with escaped names). */
+const JANELAS_EX=[{id:'w1',nome:'Bete Balanço | YouTube Music',exe:'brave.exe',navegador:true,mini:null},{id:'w2',nome:'Lo-fi para estudar - YouTube',exe:'chrome.exe',navegador:true,mini:null},{id:'w3',nome:'Planilha de gastos - Excel',exe:'excel.exe',navegador:false,mini:null}];
+function listaJanelas(){const l=S.janelas;
+ if(l===null)return `<div class="fra" style="display:flex;gap:8px;align-items:center;height:40px"><span class="gira">${ic('gira',16)}</span>Procurando janelas…</div>`;
+ if(!l.length)return `<div class="faixa">${ic('aviso',18)}<span>Nenhuma janela aberta. Abra o navegador no que você quer mostrar e atualize a lista.</span></div>`;
+ return l.map((w,i)=>`<button class="opcao${S.ofJanela&&S.ofJanela.id===w.id?' sel':''}" data-act="ofjanela:${i}" data-lista ${dica(w.nome,w.navegador?'Navegador':'Outro programa')}><span class="mini${w.mini?'':' arte a'+(i%6+1)}" style="width:64px;height:36px;border-radius:6px;${w.mini?`background:#000 url('${w.mini}') center/cover`:''}"></span><span class="corta" style="flex:1"><b class="corta" style="font-weight:600;display:block">${w.nome}</b><span class="fra corta" style="display:block;font-size:12px;line-height:16px">${w.navegador?'Navegador':'Outro programa'} · ${w.exe}</span></span></button>`).join('')}
+function folhaOferecer(){const a=S.ofTipo,m=S.ofModo,j=S.ofFonte==='janela';return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Disponibilizar</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
  <div class="mio">
+ <div class="segm larga" role="tablist" aria-label="De onde vem" style="margin-bottom:16px">${[['link','link','Link','Uma fila que todos veem'],['janela','janela','Navegador ao vivo','O que toca numa janela sua']].map(o=>`<button class="${S.ofFonte===o[0]?'sel':''}" role="tab" aria-selected="${S.ofFonte===o[0]}" data-act="offonte:${o[0]}" ${dica(o[2],o[3])}>${ic(o[1],16)}${o[2]}</button>`).join('')}</div>
  <div class="fra" style="margin-bottom:8px">O que seus amigos podem fazer</div>
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
   ${[['ouvir','fones','Ouvir','Só o som'],['ver','tela','Ouvir e ver','Som e vídeo']].map(o=>`<button class="opcao${a===o[0]?' sel':''}" data-act="oftipo:${o[0]}" ${dica(o[2],o[3])} style="flex-direction:column;align-items:flex-start;gap:4px">${ic(o[1],24)}<b style="font-weight:600">${o[2]}</b><span class="fra" style="font-size:12px;line-height:16px">${o[3]}</span></button>`).join('')}
  </div>
- <div class="fra" style="margin-bottom:8px">Quem controla</div>
+ ${j?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span class="fra">Qual janela</span><button class="ibtn" style="width:32px;height:32px" data-act="janelas" ${dica('Atualizar a lista','Mostra as janelas abertas agora')}>${ic('atualizar',16)}</button></div>
+ <div style="display:grid;gap:8px;margin-bottom:8px">${listaJanelas()}</div>
+ <div class="fra" style="font-size:12px;line-height:16px;margin-bottom:16px">Só você controla: pause e troque no próprio navegador. Seus amigos ${a==='ver'?'ouvem o som dessa janela e veem o vídeo dela':'ouvem só o som dessa janela'}.</div>`
+ :`<div class="fra" style="margin-bottom:8px">Quem controla</div>
  <div style="display:grid;gap:8px;margin-bottom:16px">
   ${Object.keys(MODOS).map(k=>`<button class="opcao${m===k?' sel':''}" data-act="ofmodo:${k}" ${dica(MODOS[k][0],MODOS[k][1])}><span class="ca"></span><span><b style="font-weight:600;display:block">${MODOS[k][0]}</b><span class="fra" style="font-size:12px;line-height:16px">${MODOS[k][1]}</span></span></button>`).join('')}
- </div>
- ${S.conn&&S.conn!=='eu'?`<div class="faixa" style="margin-bottom:16px">${ic('aviso',18)}<span>Ao disponibilizar, você sai da sessão com ${achar(S.conn).nome}.</span></div>`:''}<div class="fra" style="margin-bottom:8px">O que vai tocar</div>
+ </div>`}
+ ${S.conn&&S.conn!=='eu'?`<div class="faixa" style="margin-bottom:16px">${ic('aviso',18)}<span>Ao disponibilizar, você sai da sessão com ${achar(S.conn).nome}.</span></div>`:''}</div><div class="pe">${j?`<button class="btn pri larga" data-act="comecar-aba" ${S.ofJanela?'':'disabled'} ${dica('Compartilhar janela',S.ofJanela?'Seus amigos passam a ver na lista':'Escolha uma janela primeiro')}>Compartilhar janela</button>`:`<div class="fra" style="margin-bottom:8px">O que vai tocar</div>
  <div style="display:flex;gap:8px;margin-bottom:16px"><input class="campo" placeholder="Cole um link do YouTube ou de outro site" aria-label="Link" data-enter="comecar-oferta"></div>
- <button class="btn pri larga" data-act="comecar-oferta" ${dica('Disponibilizar','Seus amigos passam a ver na lista')}>Disponibilizar</button>
+</div><div class="pe"><button class="btn pri larga" data-act="comecar-oferta" ${dica('Disponibilizar','Seus amigos passam a ver na lista')}>Disponibilizar</button>`}
  </div></div>`}
 function folhaAmigos(){return `<div class="vela" data-act="fecha-camada"></div><div class="folha"><div class="cab"><div class="tit">Adicionar amigos</div><button class="ibtn" data-act="fecha-camada" ${dica('Fechar','Esc')}>${ic('x')}</button></div>
  <div class="mio"><div class="fra" style="margin-bottom:8px">Nome de usuário do Discord</div>
@@ -161,6 +175,11 @@ function agir(a,el){const [c,v]=a.split(':');
    case 'cancelar':{const i=D.enviados.findIndex(p=>p.usuario===v);if(i>=0)D.enviados.splice(i,1);break}
    case 'remover':{if(S.confRem!==v){S.confRem=v;break}const i=AMIGOS.findIndex(p=>p.id===v);if(i>=0)AMIGOS.splice(i,1);S.menu=null;S.confRem=null;break}
    case 'oftipo':S.ofTipo=v;break;case 'ofmodo':S.ofModo=v;break;
+   case 'offonte':S.ofFonte=v==='janela'?'janela':'link';if(S.ofFonte==='janela'&&S.janelas===null)S.janelas=JANELAS_EX;break;
+   case 'janelas':S.janelas=JANELAS_EX;break;
+   case 'ofjanela':S.ofJanela=(S.janelas||[])[+v]||null;break;
+   case 'comecar-aba':if(!S.ofJanela)break;S.oferecendo=true;S.camada=null;S.tela='principal';break;
+   case 'recorte':S.recorte=v==='inteira'?'inteira':'auto';break;
    case 'opc':S.opc[v]=!S.opc[v];break;
    case 'comecar-oferta':S.oferecendo=true;S.camada=null;S.tela='principal';break;
    case 'parar-oferta':S.oferecendo=false;break;
@@ -210,13 +229,21 @@ const CENAS={
  'sessao-offline':{tela:'sessao',conn:'marina',pos:1068,offline:true,tocando:false},
  remover:{tela:'principal',menu:'caio',menuY:200,confRem:'caio'},
  'sua-sessao':{tela:'sessao',conn:'eu',oferecendo:true,pos:40,eu:{tipo:'ouvir',modo:'dono',titulo:'Maré alta',sub:'Banda Aurora',arte:1,dur:242,gente:['caio'],fila:[['Maré alta','Banda Aurora','4:02',1,'link']]}},
+ 'oferecer-janela':{tela:'principal',camada:'oferecer',ofFonte:'janela',janelas:JANELAS_EX,ofJanela:JANELAS_EX[0]},
+ 'janelas-vazio':{tela:'principal',camada:'oferecer',ofFonte:'janela',janelas:[],ofJanela:null},
+ 'aovivo':{tela:'sessao',conn:'marina',amigo:{aoVivo:true,titulo:'Bete Balanço | YouTube Music',sub:'No navegador',dur:0,fila:[]}},
+ 'aovivo-caiu':{tela:'sessao',conn:'marina',aoVivoCaiu:true,amigo:{aoVivo:true,titulo:'Bete Balanço | YouTube Music',sub:'No navegador',dur:0,fila:[]}},
+ 'aovivo-dono':{tela:'sessao',conn:'eu',oferecendo:true,eu:{tipo:'ver',modo:'dono',aoVivo:true,titulo:'Bete Balanço | YouTube Music',sub:'No navegador',arte:3,dur:0,gente:['caio'],fila:[]}},
  'erro-aviso':{tela:'principal',aviso:'erro',avisoTxt:'Não deu pra entrar na sessão. Tente de novo.'},
  'fila-vazia':{tela:'sessao',conn:'eu',oferecendo:true,pos:0,tocando:false,eu:{tipo:'ouvir',modo:'dono',titulo:'',sub:'',arte:0,dur:0,gente:[],fila:[]}}
 };
+let amigoSalvo=null;
 function aplicarCena(){
   const h=decodeURIComponent(location.hash.slice(1)).split('|');const c=CENAS[h[0]];
+  if(amigoSalvo){Object.assign(achar(amigoSalvo.id)||{},amigoSalvo.antes);amigoSalvo=null}for(const k of ['aoVivo'])delete EU[k];
   if(c&&c.eu){Object.assign(EU,c.eu)}
-  if(c){Object.assign(S,{tela:'principal',conn:null,camada:null,menu:null,aviso:null,faixa:null,oferecendo:false,vazio:false,tocando:true,carregando:false,semOf:false,offline:false,etapa1:false,erroLogin:null,confRem:null,avisoTxt:''},c);delete S.eu;ultimaTela=null;ultimaCam=null;}
+  if(c&&c.amigo&&achar(c.conn)){const a=achar(c.conn),antes={aoVivo:a.aoVivo};for(const k in c.amigo)antes[k]=a[k];amigoSalvo={id:a.id,antes};Object.assign(a,c.amigo)}
+  if(c){Object.assign(S,{tela:'principal',conn:null,camada:null,menu:null,aviso:null,faixa:null,oferecendo:false,vazio:false,tocando:true,carregando:false,semOf:false,offline:false,etapa1:false,erroLogin:null,confRem:null,avisoTxt:'',ofFonte:'link',ofJanela:null,janelas:null,aoVivoCaiu:false,recorte:'auto'},c);delete S.eu;delete S.amigo;ultimaTela=null;ultimaCam=null;}
   desenhar();
   if(h[1])h[1].split(',').forEach(k=>document.dispatchEvent(new KeyboardEvent('keydown',{key:k==='Space'?' ':k,bubbles:true})));
 }

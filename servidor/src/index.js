@@ -9,7 +9,8 @@ const ALARME_MS = 5 * 60 * 1000;
 const INATIVO_MS = 150 * 1000;
 const MAX_PEDIDOS = 50;
 const MAX_MSG = 1024;
-const MAX_MSG_ADD = 4096; // only "adicionar" may exceed MAX_MSG
+const MAX_MSG_ADD = 4096; // only "adicionar" and "sinal" may exceed MAX_MSG
+const MAX_MSG_SINAL = 16384; // "sinal" carries a full WebRTC SDP (candidates included, no trickle)
 const MAX_FILA = 100;
 const INTERVALO_ADD = 2000; // per person: at most 1 add every 2 s
 const INTERVALO_LIB = 1000; // per session: at most 1 queued add released into the playlist per second
@@ -154,6 +155,23 @@ export default {
         if (t) await central(env).sair(await hashDe(t));
         return new Response(null, { status: 204 });
       }
+      // TURN relay for live share (Cloudflare Realtime TURN, short-lived credentials). No key configured = no relay.
+      if (pathname === "/turn" && m === "GET") {
+        const t = tokenDe(request);
+        if (!t || !(await central(env).sessaoValida(await hashDe(t)))) return json({ erro: "sessao_invalida" }, 401);
+        if (!env.TURN_KEY_ID || !env.TURN_KEY_TOKEN) return json({ iceServers: [] });
+        const r = await comRetry("https://rtc.live.cloudflare.com/v1/turn/keys/" + env.TURN_KEY_ID + "/credentials/generate-ice-servers", {
+          method: "POST",
+          headers: { authorization: "Bearer " + env.TURN_KEY_TOKEN, "content-type": "application/json" },
+          body: JSON.stringify({ ttl: 86400 }),
+        });
+        if (!r || !r.ok) return json({ iceServers: [] });
+        const d = await r.json().catch(() => null);
+        const lista = d && Array.isArray(d.iceServers) ? d.iceServers : d && d.iceServers ? [d.iceServers] : [];
+        // turn/turns only (the app already has STUN); port 53 is blocked by browsers
+        const ice = lista.map((s) => ({ ...s, urls: [].concat(s.urls || []).filter((u) => /^turns?:/.test(u) && !/:53(\?|$)/.test(u)) })).filter((s) => s.urls.length && s.username && s.credential);
+        return json({ iceServers: ice });
+      }
       if (pathname === "/ws" && m === "GET") {
         if ((request.headers.get("upgrade") || "").toLowerCase() !== "websocket") {
           return json({ erro: "pedido_invalido" }, 426);
@@ -186,6 +204,7 @@ export class Central extends DurableObject {
       s.exec("CREATE TABLE IF NOT EXISTS pedidos(de_id TEXT NOT NULL, para_usuario TEXT NOT NULL, criado INTEGER, PRIMARY KEY(de_id, para_usuario))");
       s.exec("CREATE INDEX IF NOT EXISTS ix_pedidos_para ON pedidos(para_usuario)");
       s.exec("CREATE TABLE IF NOT EXISTS ofertas(dono TEXT PRIMARY KEY, tipo TEXT NOT NULL, modo TEXT NOT NULL, fila TEXT NOT NULL, p TEXT NOT NULL, membros TEXT NOT NULL, sem_dono INTEGER)");
+      if (!s.exec("PRAGMA table_info(ofertas)").toArray().some((c) => c.name === "aba")) s.exec("ALTER TABLE ofertas ADD COLUMN aba TEXT");
       this.carregarOfertas();
       await this.agendar();
     });
@@ -233,6 +252,11 @@ export class Central extends DurableObject {
       if (o) this.encerrar(o, "dono_saiu");
       await this.presencaMudou(linha.usuario_id, fechando);
     }
+  }
+
+  sessaoValida(hash) {
+    const linha = this.sql.exec("SELECT expira FROM sessoes WHERE hash = ?", hash).toArray()[0];
+    return !!linha && linha.expira > Date.now();
   }
 
   // ---------- WebSocket upgrade ----------
@@ -292,11 +316,12 @@ export class Central extends DurableObject {
     if (!tx || agora - tx.t >= 1000) this.taxa.set(ws, { t: agora, n: 1 });
     else if (++tx.n > MAX_MSG_SEG) return; // ignored, no reply, no disconnect
     const bytes = typeof msg === "string" ? enc.encode(msg).length : Infinity;
-    if (bytes > MAX_MSG_ADD) return responder({ ok: false, erro: "pedido_invalido" });
+    if (bytes > MAX_MSG_SINAL) return responder({ ok: false, erro: "pedido_invalido" });
     let d;
     try { d = JSON.parse(msg); } catch { return responder({ ok: false, erro: "pedido_invalido" }); }
     if (!d || typeof d !== "object" || Array.isArray(d)) return responder({ ok: false, erro: "pedido_invalido" });
-    if (bytes > MAX_MSG && d.t !== "adicionar") return responder({ ok: false, erro: "pedido_invalido" });
+    if (bytes > MAX_MSG_ADD && d.t !== "sinal") return responder({ ok: false, erro: "pedido_invalido" });
+    if (bytes > MAX_MSG && d.t !== "adicionar" && d.t !== "sinal") return responder({ ok: false, erro: "pedido_invalido" });
     if (typeof d.n === "number") n = d.n;
     if (d.t === "hora") {
       try { ws.send(JSON.stringify({ t: "hora", n, c: d.c, s: Date.now() })); } catch {}
@@ -306,7 +331,7 @@ export class Central extends DurableObject {
       pedir: this.pedir, aceitar: this.aceitar, recusar: this.recusar, cancelar: this.cancelar, remover: this.remover,
       oferecer: this.oferecer, parar: this.parar, entrar_sessao: this.entrarSessao, sair_sessao: this.sairSessao,
       adicionar: this.adicionar, tirar: this.tirar, tocar: this.tocar, pausar: this.pausar, buscar: this.buscar,
-      pular: this.pular, voltar: this.voltar, fim: this.fim,
+      pular: this.pular, voltar: this.voltar, fim: this.fim, sinal: this.sinal,
     }[d.t];
     if (!acao) return responder({ ok: false, erro: "pedido_invalido" });
     let erro;
@@ -560,10 +585,10 @@ export class Central extends DurableObject {
     this.ultAdd = new Map(); // user id -> time of last accepted add
     this.taxa = new WeakMap(); // socket -> {t, n}: messages in the current 1 s window
     this.em = new Map(); // user id -> dono id of the session the user is in (dono maps to self)
-    for (const r of this.sql.exec("SELECT dono, tipo, modo, fila, p, membros, sem_dono FROM ofertas")) {
+    for (const r of this.sql.exec("SELECT dono, tipo, modo, fila, p, membros, sem_dono, aba FROM ofertas")) {
       const o = {
         dono: r.dono, tipo: r.tipo, modo: r.modo, fila: JSON.parse(r.fila), P: JSON.parse(r.p),
-        membros: new Set(JSON.parse(r.membros)), semDono: r.sem_dono, sig: null,
+        membros: new Set(JSON.parse(r.membros)), semDono: r.sem_dono, sig: null, aba: r.aba ? JSON.parse(r.aba) : null,
       };
       o.sig = this.sigDe(o);
       this.of.set(o.dono, o);
@@ -578,8 +603,8 @@ export class Central extends DurableObject {
 
   gravar(o) {
     this.sql.exec(
-      "INSERT OR REPLACE INTO ofertas(dono, tipo, modo, fila, p, membros, sem_dono) VALUES(?, ?, ?, ?, ?, ?, ?)",
-      o.dono, o.tipo, o.modo, JSON.stringify(o.fila), JSON.stringify(o.P), JSON.stringify([...o.membros]), o.semDono,
+      "INSERT OR REPLACE INTO ofertas(dono, tipo, modo, fila, p, membros, sem_dono, aba) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+      o.dono, o.tipo, o.modo, JSON.stringify(o.fila), JSON.stringify(o.P), JSON.stringify([...o.membros]), o.semDono, o.aba ? JSON.stringify(o.aba) : null,
     );
   }
 
@@ -588,8 +613,9 @@ export class Central extends DurableObject {
   }
 
   resumo(o) {
+    if (o.aba) return { tipo: o.tipo, modo: o.modo, fonte: "aba", titulo: o.aba.titulo || null, arte: o.aba.arte, gente: this.gente(o).length };
     const atual = o.fila[0];
-    return { tipo: o.tipo, modo: o.modo, titulo: atual ? atual.titulo : null, arte: atual ? atual.arte : 0, gente: this.gente(o).length };
+    return { tipo: o.tipo, modo: o.modo, fonte: "fila", titulo: atual ? atual.titulo : null, arte: atual ? atual.arte : 0, gente: this.gente(o).length };
   }
 
   sigDe(o) {
@@ -602,7 +628,7 @@ export class Central extends DurableObject {
   }
 
   snapshot(o) {
-    return { t: "sessao", dono: o.dono, tipo: o.tipo, modo: o.modo, gente: this.gente(o), fila: o.fila, P: o.P, agora: Date.now() };
+    return { t: "sessao", dono: o.dono, tipo: o.tipo, modo: o.modo, fonte: o.aba ? "aba" : "fila", aba: o.aba, gente: this.gente(o), fila: o.fila, P: o.P, agora: Date.now() };
   }
 
   enviarA(ids, obj) {
@@ -674,15 +700,25 @@ export class Central extends DurableObject {
   oferecer(id, d) {
     if (d.tipo !== "ouvir" && d.tipo !== "ver") return "pedido_invalido";
     if (d.modo !== "todos" && d.modo !== "dono" && d.modo !== "fila") return "pedido_invalido";
+    if (d.fonte !== undefined && d.fonte !== null && d.fonte !== "fila" && d.fonte !== "aba") return "pedido_invalido";
+    if (d.titulo !== undefined && d.titulo !== null && typeof d.titulo !== "string") return "pedido_invalido";
     if (!this.eu(id)) return "pedido_invalido";
+    let aba = null;
+    if (d.fonte === "aba") {
+      const titulo = (d.titulo || "").trim().slice(0, 200);
+      let h = 0;
+      for (let i = 0; i < titulo.length; i++) h = (Math.imul(h, 31) + titulo.charCodeAt(i)) >>> 0;
+      aba = { titulo, arte: h % 8 };
+    }
     let o = this.of.get(id);
     if (o) {
       o.tipo = d.tipo;
       o.modo = d.modo;
+      o.aba = aba;
       o.semDono = null;
     } else {
       this.deixar(id);
-      o = { dono: id, tipo: d.tipo, modo: d.modo, fila: [], P: { item: null, tocando: false, pos: 0, base: Date.now() }, membros: new Set(), semDono: null, sig: null };
+      o = { dono: id, tipo: d.tipo, modo: d.modo, fila: [], P: { item: null, tocando: false, pos: 0, base: Date.now() }, membros: new Set(), semDono: null, sig: null, aba };
       this.of.set(id, o);
       this.em.set(id, id);
     }
@@ -709,6 +745,23 @@ export class Central extends DurableObject {
       this.gravar(o);
     }
     this.atualizarSessao(o, [id]);
+  }
+
+  // live tab share: relays one WebRTC message between the dono and one member of the same session
+  sinal(id, d) {
+    if (typeof d.para !== "string" || !d.para || d.para === id) return "pedido_invalido";
+    const s = d.dados;
+    if (!s || typeof s !== "object" || Array.isArray(s) || !["quero", "oferta", "resposta", "fim"].includes(s.tipo)) return "pedido_invalido";
+    if (s.id !== undefined && !(typeof s.id === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(s.id))) return "pedido_invalido";
+    if (s.sdp !== undefined && !(typeof s.sdp === "string" && s.sdp.length <= 15000)) return "pedido_invalido";
+    const o = this.sessaoDe(id);
+    if (!o || !o.aba) return "nao_encontrado";
+    const ok = (o.dono === id && o.membros.has(d.para)) || (d.para === o.dono && o.membros.has(id));
+    if (!ok || this.abertos(d.para).length === 0) return "nao_encontrado";
+    const dados = { tipo: s.tipo };
+    if (s.id !== undefined) dados.id = s.id;
+    if (s.sdp !== undefined) dados.sdp = s.sdp;
+    this.enviarA([d.para], { t: "sinal", de: id, dados });
   }
 
   sairSessao(id) {

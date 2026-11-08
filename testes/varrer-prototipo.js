@@ -1,9 +1,9 @@
 // Sweep of the chosen prototype at real size: overflow, clipped text, JS errors, field behavior. Usage: node testes\varrer-prototipo.js [foto folder]
-const { chromium } = require('A:/opt/node/node_modules/@playwright/cli/node_modules/playwright');
+const { chromium } = require('./playwright');
 const path = require('path');
 const url = 'file:///' + path.resolve(__dirname, '../docs/prototipos/principal/ESCOLHIDA/proposta-B.html').replace(/\\/g, '/');
 const fotos = process.argv[2];
-const cenas = ['login', 'entrando', 'erro-login', 'vazio', 'principal', 'carregando', 'sem-ofertas', 'sem-internet', 'etapa1', 'pedido-erro', 'menu', 'aviso', 'oferecer', 'oferecendo', 'amigos', 'pedido', 'opcoes', 'sessao', 'sem-controle', 'so-fila', 'esperando', 'erro-link', 'sem-conexao', 'enviando', 'video'];
+const cenas = ['login', 'entrando', 'erro-login', 'vazio', 'principal', 'carregando', 'sem-ofertas', 'sem-internet', 'etapa1', 'pedido-erro', 'menu', 'aviso', 'oferecer', 'oferecendo', 'amigos', 'pedido', 'opcoes', 'sessao', 'sem-controle', 'so-fila', 'esperando', 'erro-link', 'sem-conexao', 'enviando', 'video', 'oferecer-janela', 'janelas-vazio', 'aovivo', 'aovivo-caiu', 'aovivo-dono', 'sua-sessao', 'fila-vazia'];
 const medir = () => {
   const j = document.getElementById('janela') || document.getElementById('videojan');
   const J = j.getBoundingClientRect(), o = [];

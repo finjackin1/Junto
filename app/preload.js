@@ -4,7 +4,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const PERMITIDAS = ['pedir', 'aceitar', 'recusar', 'cancelar', 'remover',
-  'oferecer', 'parar', 'entrar_sessao', 'sair_sessao', 'adicionar', 'tirar', 'tocar', 'pausar', 'buscar', 'pular', 'voltar', 'fim'];
+  'oferecer', 'parar', 'entrar_sessao', 'sair_sessao', 'adicionar', 'tirar', 'tocar', 'pausar', 'buscar', 'pular', 'voltar', 'fim', 'sinal'];
 const JANELA = ['min', 'fechar', 'sair', 'mostrar'];
 let offset = 0; // server clock minus local clock, pushed by main
 
@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld('junto', {
     if (!msg || typeof msg !== 'object' || !PERMITIDAS.includes(msg.t)) {
       return Promise.resolve({ ok: false, erro: 'pedido_invalido' });
     }
-    const { t, usuario, id, tipo, modo, dono, url, titulo, sub, dur, pos, item } = msg;
-    return ipcRenderer.invoke('junto:enviar', { t, usuario, id, tipo, modo, dono, url, titulo, sub, dur, pos, item })
+    const { t, usuario, id, tipo, modo, dono, url, titulo, sub, dur, pos, item, fonte, para, dados } = msg;
+    return ipcRenderer.invoke('junto:enviar', { t, usuario, id, tipo, modo, dono, url, titulo, sub, dur, pos, item, fonte, para, dados })
       .catch(() => { throw new Error('sem_conexao'); });
   },
   janela: (acao) => { if (JANELA.includes(acao)) ipcRenderer.send('junto:janela', acao); },
@@ -44,4 +44,14 @@ contextBridge.exposeInMainWorld('junto', {
   fecharVideo: () => { ipcRenderer.send('junto:fechar-video'); },
   videoDados: (d) => { ipcRenderer.send('junto:video-dados', d); },
   aoVideoAcao: (cb) => ouvir('junto:video-acao', cb),
+  // live share
+  fontes: () => ipcRenderer.invoke('junto:fontes').catch(() => []),
+  ice: () => ipcRenderer.invoke('junto:ice').catch(() => []),
+  escolherFonte: (id, sistema) => ipcRenderer.invoke('junto:escolher-fonte', typeof id === 'string' ? id : null, sistema === true).catch(() => false),
+  audio: (acao) => { ipcRenderer.send('junto:audio', acao === 'iniciar' ? 'iniciar' : 'parar'); },
+  aoAudioPcm: (cb) => ouvir('junto:audio-pcm', cb),
+  aoAudioEstado: (cb) => ouvir('junto:audio-estado', cb),
+  aoSinal: (cb) => ouvir('junto:sinal', cb),
+  local: (d) => { ipcRenderer.send('junto:local', d); },
+  aoLocal: (cb) => ouvir('junto:local', cb),
 });

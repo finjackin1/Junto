@@ -1,6 +1,6 @@
 // Stage 1 end to end: two real Junto programs, real local server runtime, fake Discord that checks PKCE.
 // Off screen, isolated data folders. Usage: node testes\e2e-etapa1.js [photo folder]
-const { _electron } = require('A:/opt/node/node_modules/@playwright/cli/node_modules/playwright');
+const { _electron } = require('./playwright');
 const http = require('http'), crypto = require('crypto'), net = require('net'), os = require('os'), path = require('path'), fs = require('fs');
 const { spawn, execSync } = require('child_process');
 

@@ -278,6 +278,17 @@ test("/saude e 404", async () => {
   assert.equal(g.status, 404);
 });
 
+test("/turn: precisa de sessao; sem chave TURN configurada devolve lista vazia", async () => {
+  const sem = await fetch(base + "/turn");
+  assert.equal(sem.status, 401);
+  const falso = await fetch(base + "/turn", { headers: { authorization: "Bearer " + "x".repeat(43) } });
+  assert.equal(falso.status, 401);
+  const u = await novo("tu");
+  const r = await fetch(base + "/turn", { headers: { authorization: "Bearer " + u.token } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { iceServers: [] });
+});
+
 test("/entrar ok: token, eu, sem token do Discord; Discord recebeu verifier/client_id/redirect e nenhum secret", async () => {
   const id = "9000000000000001";
   const antes = discordLog.tokenReqs.length;
@@ -568,7 +579,7 @@ test("etapa2: oferecer aparece so para amigos, valida tipo/modo, trocar modo man
   assert.equal((await ca.enviar({ t: "oferecer", tipo: "ver", modo: "fila" })).ok, true);
   const e = await cb.estado((s) => s.amigos.some((m) => m.id === a.id && m.oferta));
   const of = e.amigos.find((m) => m.id === a.id).oferta;
-  assert.deepEqual({ ...of, arte: undefined }, { tipo: "ver", modo: "fila", titulo: null, arte: undefined, gente: 0 });
+  assert.deepEqual({ ...of, arte: undefined }, { tipo: "ver", modo: "fila", fonte: "fila", titulo: null, arte: undefined, gente: 0 });
   assert.ok(of.arte >= 0 && of.arte <= 7);
   assert.equal((await ca.estado((s) => s.sessao)).sessao.dono, a.id);
   assert.equal(cb.ultimo().sessao, null);
@@ -1072,4 +1083,46 @@ test("etapa2: mais de 40 mensagens em 1 s no mesmo socket: extras ignoradas, sem
   assert.equal(ca.fechou, false);
   await sleep(1100);
   assert.equal(erroDe(await ca.enviar({ t: "pular" })), "pedido_invalido"); // still connected and answered
+});
+
+// ---------- stage 3: live window share ----------
+
+test("etapa3: oferta ao vivo (fonte aba) e sinal so entre dono e membro", async () => {
+  const { a, b, ca, cb } = await cenario("dono", "ver");
+  assert.equal(erroDe(await ca.enviar({ t: "oferecer", tipo: "ver", modo: "dono", fonte: "xx" })), "pedido_invalido");
+  assert.equal(erroDe(await ca.enviar({ t: "oferecer", tipo: "ver", modo: "dono", fonte: "aba", titulo: 5 })), "pedido_invalido");
+  assert.equal((await ca.enviar({ t: "oferecer", tipo: "ver", modo: "dono", fonte: "aba", titulo: "  Musica X  " })).ok, true);
+  const s = await sessaoMsg(cb, (m) => m.fonte === "aba");
+  assert.equal(s.aba.titulo, "Musica X");
+  assert.ok(s.aba.arte >= 0 && s.aba.arte <= 7);
+  const e = await cb.estado((x) => x.amigos.some((m) => m.id === a.id && m.oferta && m.oferta.fonte === "aba"));
+  assert.equal(e.amigos.find((m) => m.id === a.id).oferta.titulo, "Musica X");
+
+  // member -> dono and back, extra fields dropped
+  assert.equal((await cb.enviar({ t: "sinal", para: a.id, dados: { tipo: "quero", id: "abc_1", x: 1 } })).ok, true);
+  const q = await ca.aguardar(() => ca.msgs.find((m) => m.t === "sinal"), 6000, "sinal quero");
+  assert.deepEqual(q, { t: "sinal", de: b.id, dados: { tipo: "quero", id: "abc_1" } });
+  const sdp = "v=0\r\n" + "a".repeat(9000);
+  assert.equal((await ca.enviar({ t: "sinal", para: b.id, dados: { tipo: "oferta", id: "abc_1", sdp } })).ok, true);
+  const o = await cb.aguardar(() => cb.msgs.find((m) => m.t === "sinal"), 6000, "sinal oferta");
+  assert.equal(o.de, a.id);
+  assert.equal(o.dados.sdp, sdp);
+
+  // bad payloads
+  for (const d of [null, [], { tipo: "xx" }, { tipo: "quero", id: "com espaco" }, { tipo: "oferta", sdp: 5 }, { tipo: "oferta", sdp: "a".repeat(15001) }])
+    assert.equal(erroDe(await cb.enviar({ t: "sinal", para: a.id, dados: d })), "pedido_invalido");
+  assert.equal(erroDe(await cb.enviar({ t: "sinal", para: b.id, dados: { tipo: "quero" } })), "pedido_invalido");
+
+  // someone outside the session can't signal nor be signaled
+  const c = await novo("c");
+  const cc = await conectar(c);
+  await fazerAmigos(a, ca, c, cc);
+  assert.equal(erroDe(await cc.enviar({ t: "sinal", para: a.id, dados: { tipo: "quero" } })), "nao_encontrado");
+  assert.equal(erroDe(await ca.enviar({ t: "sinal", para: c.id, dados: { tipo: "oferta", sdp: "v=0" } })), "nao_encontrado");
+
+  // back to a queue offer: no more signaling
+  assert.equal((await ca.enviar({ t: "oferecer", tipo: "ver", modo: "dono" })).ok, true);
+  await sessaoMsg(cb, (m) => m.fonte === "fila" && m.aba === null);
+  assert.equal(erroDe(await cb.enviar({ t: "sinal", para: a.id, dados: { tipo: "quero" } })), "nao_encontrado");
+  for (const x of [ca, cb, cc]) await x.fechar();
 });

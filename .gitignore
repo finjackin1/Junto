@@ -5,8 +5,10 @@ dist/
 .wrangler/
 .dev.vars
 CLAUDE.md
+AGENTS.md
 docs/CONTEXTO.md
 docs/PARADA.md
 docs/NAO-EXCLUIR.md
 docs/PRA-TESTAR.md
 docs/orq/
+app/nativo/*.exe

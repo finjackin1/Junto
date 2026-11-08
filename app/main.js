@@ -3,7 +3,8 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, session, safeStorage, Notification } = require('electron');
+const { spawn, execFile } = require('node:child_process');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, session, safeStorage, Notification, desktopCapturer } = require('electron');
 
 const { criarLog } = require('./log');
 const { criarOpcoes } = require('./opcoes');
@@ -16,8 +17,7 @@ const { criarAtualizacao } = require('./atualizacao');
 const env = process.env;
 const oculto = env.JUNTO_OCULTO === '1';
 // Test runs never make sound (user's headphones). Must be set before app ready.
-if (oculto || env.JUNTO_TESTE_ATUALIZACAO || env.JUNTO_DADOS) app.commandLine.appendSwitch('mute-audio');
-// Started by Windows at logon with "Iniciar minimizado" on: stay in the tray.
+if (oculto || env.JUNTO_TESTE_ATUALIZACAO || env.JUNTO_DADOS) app.commandLine.appendSwitch('mute-audio');// Started by Windows at logon with "Iniciar minimizado" on: stay in the tray.
 const naBandeja = process.argv.includes('--minimizado');
 const dados = env.JUNTO_DADOS || app.getPath('userData');
 if (env.JUNTO_DADOS) app.setPath('userData', env.JUNTO_DADOS);
@@ -40,6 +40,12 @@ const TELA_URL = pathToFileURL(TELA).href;
 const VIDEO = path.join(__dirname, 'tela', 'video.html');
 const VIDEO_URL = pathToFileURL(VIDEO).href;
 const ICONE = path.join(__dirname, 'icone.png');
+// packaged: build unpacks nativo/*.exe next to app.asar (--asar.unpack), spawn cannot run from inside the archive
+// Tests (dev only): JUNTO_AUDIO points at a .js fake (silent tone source), run with this executable as plain node.
+const AUDIO_FAKE = !app.isPackaged && /\.js$/i.test(env.JUNTO_AUDIO || '') ? env.JUNTO_AUDIO : null;
+const AUDIO_EXE = AUDIO_FAKE || path.join(__dirname.replace(/app\.asar(?=$|[\\/])/, 'app.asar.unpacked'), 'nativo', 'junto-audio.exe');
+const audioCmd = (args) => (AUDIO_FAKE ? [process.execPath, [AUDIO_FAKE, ...args], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } }] : [AUDIO_EXE, args, {}]);
+const NAVEGADORES = ['chrome.exe', 'msedge.exe', 'brave.exe', 'firefox.exe', 'opera.exe', 'vivaldi.exe', 'arc.exe', 'browser.exe', 'zen.exe', 'librewolf.exe', 'waterfox.exe', 'thorium.exe', 'floorp.exe', 'chromium.exe'];
 
 let janela = null;
 let tray = null;
@@ -53,6 +59,10 @@ let videoDados = null; // last payload from the main window, replayed when the v
 let ultOffset = 0;
 let emSessao = false; // true while a media session is open (auto-update waits)
 let atualizacao = null;
+// Live share: window chosen in the picker (used by getDisplayMedia in the main window) and the audio helper process.
+let fontes = [];          // last desktopCapturer list
+let fonteEscolhida = null; // { id, sistema } — sistema: send the whole PC sound (helper failed)
+let audioProc = null;
 
 const CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https://cdn.discordapp.com data:; media-src https:" + (env.JUNTO_TESTE_MIDIA === '1' && !app.isPackaged ? ' http://127.0.0.1:*' : ''); // local media server only in e2e tests
 
@@ -111,6 +121,7 @@ function abrirVideo() {
   v.on('closed', () => {
     const peloPrograma = fechandoVideo; fechandoVideo = false;
     if (videoJanela === v) videoJanela = null;
+    enviarTela('junto:video-acao', 'fechado'); // live share stops feeding it
     if (!saindo && !peloPrograma) mostrar(); // user closed it (X / Alt+F4): back to the main window
   });
   v.loadFile(VIDEO);
@@ -141,6 +152,7 @@ function criarJanela() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      backgroundThrottling: false, // live share keeps capturing and sending while the window sits in the tray
       preload: path.join(__dirname, 'preload.js'),
     },
   };
@@ -205,6 +217,7 @@ function iniciarCliente() {
     aoSessao: (m) => { emSessao = !m.fim; enviarTela('junto:sessao', m); },
     aoOffset: (o) => { ultOffset = o; enviarTela('junto:offset', o); enviarVideo('junto:offset', o); },
     aoSessaoFim: () => { emSessao = false; sessao.apagar(); sessaoFimPendente = true; enviarTela('junto:sessao-fim'); },
+    aoSinal: (s) => enviarTela('junto:sinal', s),
     log,
   });
   cliente.iniciar();
@@ -220,7 +233,90 @@ function remetenteOk(evento) {
   return !!(f && typeof f.url === 'string' && f.url.startsWith(TELA_URL));
 }
 
+// ---------- live share: window picker, audio helper ----------
+function infoJanelas(hwnds) {
+  return new Promise((ok) => {
+    if (!hwnds.length || !fs.existsSync(AUDIO_EXE)) { ok(new Map()); return; }
+    const [cmd, args, o] = audioCmd(['info', ...hwnds]);
+    execFile(cmd, args, { ...o, timeout: 5000, windowsHide: true }, (err, out) => {
+      const m = new Map();
+      if (!err) for (const l of String(out).split(/\r?\n/)) { const [h, pid, exe] = l.trim().split(' '); if (h) m.set(h, { pid: Number(pid) || 0, exe: (exe || '').toLowerCase() }); }
+      ok(m);
+    });
+  });
+}
+
+const hwndDe = (id) => { const m = /^window:(\d+):/.exec(String(id)); return m ? m[1] : null; };
+
+async function listarFontes() {
+  const lista = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
+  const meus = new Set([janela, videoJanela].filter((w) => w && !w.isDestroyed()).map((w) => w.getMediaSourceId()));
+  fontes = lista.filter((s) => !meus.has(s.id) && hwndDe(s.id));
+  const info = await infoJanelas(fontes.map((s) => hwndDe(s.id)));
+  const r = fontes.map((s) => {
+    const i = info.get(hwndDe(s.id)) || { exe: '' };
+    return { id: s.id, nome: String(s.name || '').slice(0, 200), exe: i.exe, navegador: NAVEGADORES.includes(i.exe), miniatura: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : null };
+  });
+  r.sort((a, b) => (b.navegador - a.navegador));
+  return r;
+}
+
+function pararAudio() {
+  const p = audioProc; audioProc = null;
+  if (!p) return;
+  try { p.stdin.end(); } catch { /* gone */ }
+  setTimeout(() => { try { p.kill(); } catch { /* gone */ } }, 1000);
+}
+
+// Sound of the chosen window only (its process tree), PCM s16le 48 kHz stereo pushed to the main window.
+function iniciarAudio(id) {
+  pararAudio();
+  const h = hwndDe(id);
+  if (!h || !fs.existsSync(AUDIO_EXE)) { enviarTela('junto:audio-estado', 'erro'); return; }
+  const [cmd, args, o] = audioCmd(['captar', h]);
+  const p = spawn(cmd, args, { ...o, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  audioProc = p;
+  let resto = Buffer.alloc(0);
+  p.stdout.on('data', (b) => {
+    if (audioProc !== p) return;
+    let d = resto.length ? Buffer.concat([resto, b]) : b;
+    const n = d.length - (d.length % 4); // whole stereo frames only
+    resto = d.subarray(n);
+    if (n) enviarTela('junto:audio-pcm', d.subarray(0, n));
+  });
+  let err = '';
+  p.stderr.on('data', (b) => {
+    err += b;
+    if (/^ok /m.test(err) && audioProc === p) { enviarTela('junto:audio-estado', 'ok'); err = ''; }
+  });
+  p.on('error', (e) => { log('audio: falhou', e && e.message); if (audioProc === p) { audioProc = null; enviarTela('junto:audio-estado', 'erro'); } });
+  p.on('exit', (c) => { log('audio: saiu', c, err.trim().slice(0, 120)); if (audioProc === p) { audioProc = null; enviarTela('junto:audio-estado', 'erro'); } });
+}
+
 function registrarIpc() {
+  ipcMain.handle('junto:fontes', async (ev) => {
+    if (!remetenteOk(ev)) return [];
+    try { return await listarFontes(); } catch (e) { log('fontes: erro', e && e.message); return []; }
+  });
+  ipcMain.handle('junto:escolher-fonte', (ev, id, sistema) => {
+    if (!remetenteOk(ev)) return false;
+    if (id === null) { fonteEscolhida = null; return true; }
+    if (!fontes.some((s) => s.id === id)) return false;
+    fonteEscolhida = { id, sistema: sistema === true };
+    return true;
+  });
+  ipcMain.on('junto:audio', (ev, acao) => {
+    if (!remetenteOk(ev)) return;
+    if (acao === 'iniciar' && fonteEscolhida) iniciarAudio(fonteEscolhida.id); else pararAudio();
+  });
+  // Main window <-> video window: local WebRTC link that carries the live video (a MediaStream can't cross windows).
+  ipcMain.on('junto:local', (ev, d) => {
+    if (!d || typeof d !== 'object' || !['quero', 'oferta', 'resposta', 'fim'].includes(d.tipo)) return;
+    const limpo = { tipo: d.tipo, sdp: typeof d.sdp === 'string' ? d.sdp.slice(0, 20000) : undefined };
+    if (remetenteOk(ev)) enviarVideo('junto:local', limpo);
+    else if (remetenteVideoOk(ev)) enviarTela('junto:local', limpo);
+  });
+
   ipcMain.handle('junto:entrar', async (ev) => {
     if (!remetenteOk(ev)) return { ok: false, erro: 'discord_fora' };
     const r = await login.entrar();
@@ -237,6 +333,22 @@ function registrarIpc() {
     if (cliente) cliente.parar();
     emSessao = false;
     await sessao.sair();
+  });
+
+  // TURN relay servers for live share (from our server; credentials last 24 h, reused for 12 h)
+  let iceCache = null;
+  ipcMain.handle('junto:ice', async (ev) => {
+    if (!remetenteOk(ev)) return [];
+    if (iceCache && Date.now() - iceCache.em < 12 * 3600e3) return iceCache.lista;
+    const t = sessao && sessao.token();
+    if (!t || !config.servidor) return [];
+    try {
+      const r = await fetch(config.servidor.replace(/\/+$/, '') + '/turn', { headers: { authorization: 'Bearer ' + t }, signal: AbortSignal.timeout(5000) });
+      const d = r.ok ? await r.json() : null;
+      const lista = d && Array.isArray(d.iceServers) ? d.iceServers : [];
+      if (lista.length) iceCache = { em: Date.now(), lista };
+      return lista;
+    } catch (e) { log('ice: falhou', e && e.message); return []; }
   });
 
   ipcMain.handle('junto:enviar', async (ev, msg) => {
@@ -262,6 +374,7 @@ function registrarIpc() {
     videoDados = {
       video: typeof d.video === 'string' && (/^https:\/\//i.test(d.video) || (env.JUNTO_TESTE_MIDIA === '1' && !app.isPackaged && /^http:\/\/127\.0\.0\.1[:/]/.test(d.video))) ? d.video : null,
       item: typeof d.item === 'string' ? d.item : null,
+      aovivo: d.aovivo === true,
       titulo: String(d.titulo || '').slice(0, 300),
       sub: String(d.sub || '').slice(0, 200),
       dur: typeof d.dur === 'number' ? d.dur : null,
@@ -313,6 +426,7 @@ if (!app.requestSingleInstanceLock()) {
     saindo = true;
     if (atualizacao) atualizacao.aoSair();
     if (midia) midia.cancelarTudo();
+    pararAudio();
     if (cliente) cliente.parar();
     if (tray) { tray.destroy(); tray = null; }
   });
@@ -322,7 +436,14 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.webRequest.onHeadersReceived((det, cb) => {
       cb({ responseHeaders: { ...det.responseHeaders, 'Content-Security-Policy': [CSP] } });
     });
-    session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+    // Only the main window may capture (live share); everything else is denied.
+    const daTela = (wc) => !!(janela && !janela.isDestroyed() && wc === janela.webContents);
+    session.defaultSession.setPermissionRequestHandler((wc, perm, cb, det) => cb(daTela(wc) && (perm === 'display-capture' || (perm === 'media' && !!det && Array.isArray(det.mediaTypes) && !det.mediaTypes.includes('audio') && !!fonteEscolhida))));
+    session.defaultSession.setDisplayMediaRequestHandler((req, cb) => {
+      const f = fonteEscolhida && fontes.find((s) => s.id === fonteEscolhida.id);
+      if (!f || !janela || janela.isDestroyed() || req.frame !== janela.webContents.mainFrame) { cb({}); return; }
+      cb(fonteEscolhida.sistema ? { video: f, audio: 'loopback' } : { video: f });
+    });
 
     sessao = criarSessao({ dir: dados, safeStorage, log, servidor: () => config.servidor });
     sessao.carregar();

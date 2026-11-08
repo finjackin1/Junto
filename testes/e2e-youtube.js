@@ -1,13 +1,13 @@
 // Stage 2 with REAL yt-dlp + REAL YouTube link: two Junto programs, local server, fake Discord. Proves decode/stream of YouTube media.
 // Usage: node testes\e2e-youtube.js [url]  (needs internet; yt-dlp at A:\opt\yt-dlp)
-const { _electron } = require('A:/opt/node/node_modules/@playwright/cli/node_modules/playwright');
+const { _electron } = require('./playwright');
 const http = require('http'), crypto = require('crypto'), net = require('net'), os = require('os'), path = require('path'), fs = require('fs');
 const { spawn, execSync, execFileSync } = require('child_process');
 
 const raiz = path.resolve(__dirname, '..');
 const appDir = path.join(raiz, 'app');
 const electron = path.join(appDir, 'node_modules/electron/dist/electron.exe');
-const FFMPEG = 'A:/Documentos/Claude-Projects/FNarra/ferramentas/ffmpeg/ffmpeg-9.0.1-essentials_build/bin/ffmpeg.exe';
+const FFMPEG = require('./playwright').ffmpeg();
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'junto-e2e2-'));
 const midiaDir = path.join(os.tmpdir(), 'junto-e2e2-midia');
 const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -68,7 +68,7 @@ async function abrir(conta) {
   const app = await _electron.launch({
     executablePath: electron,
     args: ['--user-data-dir=' + dados, appDir],
-    env: { ...process.env, JUNTO_SERVIDOR: 'http://127.0.0.1:' + ctx.portaS, JUNTO_DISCORD_CLIENT_ID: 'teste', JUNTO_DISCORD_AUTORIZAR: 'http://127.0.0.1:' + ctx.portaD + '/authorize/' + conta, JUNTO_DADOS: dados, JUNTO_SEM_NAVEGADOR: '1', JUNTO_OCULTO: '1', JUNTO_YTDLP: 'A:/opt/yt-dlp/yt-dlp.exe' },
+    env: { ...process.env, JUNTO_SERVIDOR: 'http://127.0.0.1:' + ctx.portaS, JUNTO_DISCORD_CLIENT_ID: 'teste', JUNTO_DISCORD_AUTORIZAR: 'http://127.0.0.1:' + ctx.portaD + '/authorize/' + conta, JUNTO_DADOS: dados, JUNTO_SEM_NAVEGADOR: '1', JUNTO_OCULTO: '1', JUNTO_YTDLP: require('./playwright').ytdlp() },
   });
   const p = await app.firstWindow();
   p.on('pageerror', e => { falhas++; console.log('FALHA erro JS ' + conta + ': ' + e.message); });

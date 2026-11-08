@@ -31,7 +31,7 @@ O Windows pode avisar que o programa não é conhecido, porque ele não tem assi
 
 Precisa do Node.js 20 ou mais novo.
 
-- `app/`: o programa (Electron). `npm install`, depois `npm test` e `npm start`. Para gerar a pasta do programa: `npx electron-packager . Junto --platform=win32 --arch=x64 --icon=icone.ico --ignore="^/teste" --extra-resource=<caminho do yt-dlp.exe> --out=../dist --overwrite`.
+- `app/`: o programa (Electron). `npm install`, depois `npm test` e `npm start`. Para gerar a pasta do programa: `npx electron-packager . Junto --platform=win32 --arch=x64 --icon=icone.ico --ignore="^/teste" --asar.unpack="**/nativo/*.exe" --extra-resource=<caminho do yt-dlp.exe> --out=../dist --overwrite`.
 - `servidor/`: o servidor (Cloudflare Worker com Durable Object). `npm install`, `npm test`, e `npx wrangler deploy` para publicar na sua conta Cloudflare. Troque o endereço do servidor e o ID do app do Discord em `app/config.json`.
 
 ## Licença

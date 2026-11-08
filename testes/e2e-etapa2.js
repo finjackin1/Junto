@@ -1,13 +1,13 @@
 // Stage 2 end to end: three real Junto programs, real local server runtime, fake Discord, fake yt-dlp, local media server.
 // Off screen, isolated data folders. Usage: node testes\e2e-etapa2.js [photo folder]
-const { _electron } = require('A:/opt/node/node_modules/@playwright/cli/node_modules/playwright');
+const { _electron } = require('./playwright');
 const http = require('http'), crypto = require('crypto'), net = require('net'), os = require('os'), path = require('path'), fs = require('fs');
 const { spawn, execSync, execFileSync } = require('child_process');
 
 const raiz = path.resolve(__dirname, '..');
 const appDir = path.join(raiz, 'app');
 const electron = path.join(appDir, 'node_modules/electron/dist/electron.exe');
-const FFMPEG = 'A:/Documentos/Claude-Projects/FNarra/ferramentas/ffmpeg/ffmpeg-9.0.1-essentials_build/bin/ffmpeg.exe';
+const FFMPEG = require('./playwright').ffmpeg();
 const fotos = process.argv[2];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'junto-e2e2-'));
 const midiaDir = path.join(os.tmpdir(), 'junto-e2e2-midia');
@@ -141,7 +141,8 @@ const foto = async (p, n) => {
 };
 const entrar = async (A, n) => { await A.p.click('[data-act="entrar"]'); return ate(n + ' entrou', () => A.p.evaluate(() => M.S.tela === 'principal' && !M.S.carregando)); };
 const texto = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent : null; }, sel);
-const tocaOk = p => p.evaluate(() => { const a = document.querySelector('audio'); return !!a && !a.paused && a.currentTime > 0.8; });
+// on failure throws the element state, so ate() prints why
+const tocaOk = p => p.evaluate(() => { const a = document.querySelector('audio'); if (!!a && !a.paused && a.currentTime > 0.8) return true; throw new Error(a ? JSON.stringify({ src: (a.getAttribute('src') || '').slice(0, 60), paused: a.paused, t: a.currentTime, rs: a.readyState, err: a.error && a.error.code, S: M.S.tocando }) : 'sem audio'); });
 const CAMPO = 'input.campo[aria-label="Link para a fila"]';
 // Dead-button check: every visible [data-act] must do something (no 'noop', no "next version" placeholder).
 const semMorto = async (X, n) => {

@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('junto', {
   agoraServidor: () => Date.now() + offset,
   aoVideo: (cb) => { if (typeof cb === 'function') ipcRenderer.on('junto:video-dados', (_e, d) => { cb(d); }); },
   acao: (a) => { if (a === 'tocar' || a === 'fechar' || a === 'telacheia') ipcRenderer.send('junto:video-acao', a); },
+  local: (d) => { ipcRenderer.send('junto:local', d); },
+  aoLocal: (cb) => { if (typeof cb === 'function') ipcRenderer.on('junto:local', (_e, d) => { cb(d); }); },
   aoTelaCheia: (cb) => { if (typeof cb === 'function') ipcRenderer.on('junto:tela-cheia', (_e, f) => { cb(f === true); }); },
 });

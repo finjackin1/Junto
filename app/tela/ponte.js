@@ -52,7 +52,7 @@
 
   // ---------- stage 2: session, local playback ----------
   const Sin = window.Sincronia;
-  const CAMPOS_EU = ['tipo', 'modo', 'titulo', 'sub', 'arte', 'dur', 'pos', 'gente', 'fila'];
+  const CAMPOS_EU = ['tipo', 'modo', 'titulo', 'sub', 'arte', 'dur', 'pos', 'gente', 'fila', 'aoVivo'];
   let ultEstado = null, ultSessao = null, meuId = null;
   let item = null, itemTipo = null, carregado = false, midiaAtual = null, seq = 0, fimEm = 0, timerFaixa = null, timerTenta = null, adicionando = false;
   let saidaPendente = null; // {t, dono}: leave asked while offline, sent on reconnect; snapshots of that dono are ignored until then
@@ -72,8 +72,10 @@
   const volSalvo = Number(localStorage.getItem('junto.vol'));
   S.vol = Number.isFinite(volSalvo) && localStorage.getItem('junto.vol') !== null ? Math.min(1, Math.max(0, volSalvo)) : 1;
   S.mudo = localStorage.getItem('junto.mudo') === '1';
+  const AV = window.AoVivo; // live share (aovivo.js)
   const aplicarVol = () => {
     audio.volume = S.vol; audio.muted = S.mudo;
+    if (AV) AV.volume(S.vol, S.mudo);
     localStorage.setItem('junto.vol', String(S.vol)); localStorage.setItem('junto.mudo', S.mudo ? '1' : '0');
   };
   aplicarVol();
@@ -115,9 +117,11 @@
     J.enviar({ t: 'fim', item }).catch(() => {});
   }
 
+  const aoVivo = m => !!(m && m.fonte === 'aba' && m.aba && typeof m.aba === 'object');
   function dadosVideo() {
     if (!ultSessao) return;
     if (ultSessao.tipo !== 'ver') { J.fecharVideo(); return; }
+    if (aoVivo(ultSessao)) { J.videoDados({ aovivo: true, titulo: ultSessao.aba.titulo || '', sub: 'Ao vivo', P: null }); return; }
     const it = (ultSessao.fila || []).find(x => x.id === item);
     J.videoDados({ video: (midiaAtual && midiaAtual.video) || null, item, titulo: it ? it.titulo : '', sub: it ? it.sub : '', dur: durDe(it) || null, P: ultSessao.P });
   }
@@ -129,7 +133,8 @@
     const m = ultSessao, dono = m.dono === meuId;
     const alvo = dono ? EU : AMIGOS.find(a => a.id === m.dono);
     if (!alvo) return;
-    const fila = Array.isArray(m.fila) ? m.fila : [], cur = fila[0];
+    const vivo = aoVivo(m);
+    const fila = !vivo && Array.isArray(m.fila) ? m.fila : [], cur = vivo ? { titulo: m.aba.titulo || 'Ao vivo', sub: 'No navegador', arte: m.aba.arte } : fila[0];
     const modo = ['todos', 'dono', 'fila'].includes(m.modo) ? m.modo : 'dono';
     const conhecidos = Array.isArray(m.gente) ? m.gente.filter(id => id !== meuId && id !== m.dono && AMIGOS.some(a => a.id === id)) : [];
     Object.assign(alvo, {
@@ -138,6 +143,7 @@
       titulo: cur ? esc(cur.titulo) : '', sub: cur ? esc(cur.sub) : '',
       arte: arteDe(cur ? cur.arte : alvo.arte), dur: durDe(cur), pos: 0,
       gente: conhecidos,
+      aoVivo: vivo,
       fila: fila.map(it => [esc(it.titulo), esc(it.sub), durDe(it) ? M.hms(durDe(it)) : '', arteDe(it.arte), 'link', esc(it.id)]),
     });
   }
@@ -146,7 +152,7 @@
     const P = ultSessao && ultSessao.P;
     const a = S.conn && M.achar(S.conn);
     const d = (a && a.dur) || 0;
-    if (!P || P.item == null) { setPos(0); S.tocando = false; } else {
+    if (aoVivo(ultSessao)) { setPos(0); S.tocando = true; } else if (!P || P.item == null) { setPos(0); S.tocando = false; } else {
       let p = Sin.posicaoAgora(P, J.agoraServidor());
       p = Math.max(0, d ? Math.min(d, p) : p);
       setPos(p); S.tocando = P.tocando === true;
@@ -161,6 +167,7 @@
 
   function trocarItem() {
     const m = ultSessao;
+    if (aoVivo(m)) { if (item != null || itemTipo) { J.cancelarResolver(); clearTimeout(timerTenta); timerTenta = null; item = null; itemTipo = null; ++seq; audio.removeAttribute('src'); audio.load(); } return; }
     const id = m && m.P && m.P.item != null ? m.P.item : null;
     const tp = m && m.tipo === 'ver' ? 'ver' : 'ouvir';
     if (id === item && tp === itemTipo) return;
@@ -191,7 +198,7 @@
 
   function sincronizar() {
     const m = ultSessao;
-    if (!m) { sincA.definir(null); return; }
+    if (!m || aoVivo(m)) { sincA.definir(null); return; }
     const it = (m.fila || []).find(x => x.id === item);
     sincA.definir(m.P, durDe(it) || null);
   }
@@ -201,6 +208,7 @@
     ultSessao = null; item = null; itemTipo = null; J.cancelarResolver(); clearTimeout(timerTenta); timerTenta = null; carregado = false; midiaAtual = null; ++seq; fimEm = 0;
     audio.removeAttribute('src'); audio.load();
     sincA.definir(null);
+    if (AV) AV.pararTudo();
     J.fecharVideo();
     for (const k of CAMPOS_EU) delete EU[k];
     S.conn = null; S.oferecendo = false; S.tocando = false; setPos(0);
@@ -224,12 +232,60 @@
     if (novo) { S.tela = 'sessao'; S.camada = null; S.menu = null; S.faixa = null; S.sessaoAberta = true; }
     montar();
     if (!M.achar(S.conn)) { S.conn = null; }
+    if (AV) aoVivoSessao(m);
     trocarItem();
     sincronizar();
     dadosVideo();
     atualizarPos();
     if (linkPendente && m.dono === meuId) { const l = linkPendente; linkPendente = null; adicionarLink(l.link, l.tipo); }
     M.desenhar();
+  }
+
+  // Live share: dono keeps one link per member; a member asks the dono for the stream.
+  function aoVivoSessao(m) {
+    const meu = m.dono === meuId;
+    if (!aoVivo(m)) { if (AV.assistindo()) AV.sairEsp(); if (meu && AV.donoAtivo()) AV.pararDono(); return; }
+    if (meu) {
+      if (!AV.donoAtivo()) { J.enviar({ t: 'parar' }).catch(() => {}); return; } // offer left over from a previous run: nothing is captured
+      AV.gente(m.gente);
+    } else AV.assistir(m.dono);
+  }
+  if (AV) AV.aoEstado((e) => {
+    if (e === 'fonte-fim') {
+      erroGeral('A janela que você estava compartilhando foi fechada.');
+      J.enviar({ t: 'parar' }).catch(() => {}).then(() => { if (S.conn === 'eu') encerrar(); });
+    } else if (e === 'audio-erro') erroGeral('Não deu pra pegar o som dessa janela. Seus amigos só veem a imagem.');
+    else if (e === 'caiu' && !S.aoVivoCaiu) { S.aoVivoCaiu = true; M.desenhar(); }
+    else if (e === 'conectado' && S.aoVivoCaiu) { S.aoVivoCaiu = false; M.desenhar(); }
+  });
+  // Window picker: list from main (desktopCapturer), every string escaped before it enters state.
+  let pedidoJanelas = 0;
+  function carregarJanelas() {
+    if (!AV) { S.janelas = []; return; }
+    const meu = ++pedidoJanelas;
+    S.janelas = null;
+    AV.fontes().then(l => {
+      if (meu !== pedidoJanelas) return;
+      const lista = (Array.isArray(l) ? l : []).filter(w => w && typeof w.id === 'string').map(w => ({
+        id: w.id, bruto: String(w.nome || ''), nome: esc(String(w.nome || '')), exe: esc(String(w.exe || '')), navegador: !!w.navegador,
+        mini: typeof w.miniatura === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(w.miniatura) ? w.miniatura : null,
+      }));
+      S.janelas = lista;
+      if (S.ofJanela && !lista.some(w => w.id === S.ofJanela.id)) S.ofJanela = null;
+      M.desenhar();
+    }).catch(() => { if (meu === pedidoJanelas) { S.janelas = []; M.desenhar(); } });
+  }
+  // Starts sharing the window chosen in the picker (S.ofJanela = {id, bruto, navegador}).
+  async function comecarAba() {
+    const j = S.ofJanela;
+    if (!AV || !j || !j.id) { erroGeral('Escolha a janela do navegador que você quer compartilhar.'); return; }
+    const tipo = S.ofTipo === 'ouvir' ? 'ouvir' : 'ver';
+    if (saidaPendente && saidaPendente.dono === meuId) saidaPendente = null;
+    S.recorte = 'auto'; // comecarDono starts in automatic crop
+    try { await AV.comecarDono(j.id); } catch (e) { AV.pararDono(false); erroGeral('Não deu pra capturar essa janela. Escolha de novo.'); M.desenhar(); return; }
+    enviar({ t: 'oferecer', tipo, modo: 'dono', fonte: 'aba', titulo: AV.tituloLimpo(j.bruto, j.navegador) }, () => {
+      S.oferecendo = true; S.camada = null;
+    }, e => { AV.pararDono(false); erroCom('Não deu pra disponibilizar agora. Tente de novo.')(e); });
   }
 
   const LINK_RUIM = 'Isso não é um link. Cole um endereço que começa com http.';
@@ -353,6 +409,18 @@
       case 'opc': S.opc[v] = !S.opc[v]; J.salvarOpcoes(S.opc); return true;
       case 'volume': S.mudo = !S.mudo; if (!S.mudo && S.vol === 0) S.vol = 0.5; aplicarVol(); return true;
       case 'add-link': adicionarFila(); return true;
+      case 'comecar-aba': comecarAba(); return true;
+      case 'offonte':
+        S.ofFonte = v === 'janela' ? 'janela' : 'link';
+        if (S.ofFonte === 'janela') carregarJanelas();
+        return true;
+      case 'janelas': carregarJanelas(); return true;
+      case 'camada': if (v === 'oferecer' && S.ofFonte === 'janela') carregarJanelas(); return false; // the prototype opens the sheet
+      case 'ofjanela': S.ofJanela = (S.janelas || [])[+v] || null; return true;
+      case 'recorte':
+        S.recorte = v === 'inteira' ? 'inteira' : 'auto';
+        if (AV) AV.definirRecorte(S.recorte === 'inteira' ? { x: 0, y: 0, w: 1, h: 1 } : null);
+        return true;
       case 'comecar-oferta': {
         const tipo = S.ofTipo === 'ouvir' ? 'ouvir' : 'ver';
         const modo = ['todos', 'dono', 'fila'].includes(S.ofModo) ? S.ofModo : 'todos';
@@ -360,6 +428,7 @@
         const link = campo ? campo.value.trim() : '';
         if (link && !linkValido(link)) { erroGeral(LINK_RUIM); if (campo) campo.focus(); return true; }
         if (saidaPendente && saidaPendente.dono === meuId) saidaPendente = null; // a new offer of mine must not be ignored
+        if (AV && AV.donoAtivo()) AV.pararDono();
         enviar({ t: 'oferecer', tipo, modo }, () => {
           S.oferecendo = true; S.camada = null;
           if (link) { linkPendente = { link, tipo }; if (ultSessao && ultSessao.dono === meuId) aoSnapshot(ultSessao); }
@@ -403,7 +472,7 @@
       case 'tirar':
         if (v && ultSessao && M.podeControlar()) J.enviar({ t: 'tirar', id: v }).catch(() => {});
         return true;
-      case 'ver-video': J.abrirVideo(); dadosVideo(); return true;
+      case 'ver-video': J.abrirVideo(); dadosVideo(); if (AV) AV.mostrarVideo(true); return true;
       case 'min': J.janela('min'); return true;
       case 'fechar': return true; // handled by press and hold below
       default: return false;
@@ -412,7 +481,7 @@
 
   J.aoEstado(e => { aplicar(e); M.desenhar(); });
   J.aoSessao(aoSnapshot);
-  J.aoVideoAcao(a => { if (a === 'tocar') M.agir('tocar'); });
+  J.aoVideoAcao(a => { if (a === 'tocar') M.agir('tocar'); else if (a === 'fechado' && AV) AV.mostrarVideo(false); });
 
   // Queue add (button or Enter via data-enter): resolve locally, then add. Field is emptied on success.
   const CAMPO_FILA = 'input.campo[aria-label="Link para a fila"]';

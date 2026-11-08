@@ -1,7 +1,7 @@
 {
   "name": "junto",
   "productName": "Junto",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Junto: ouvir e assistir midia sincronizada com amigos",
   "main": "main.js",
   "private": true,

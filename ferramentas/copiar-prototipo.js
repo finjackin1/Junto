@@ -15,6 +15,6 @@ fs.writeFileSync(path.join(tela, 'index.html'), `<!doctype html><html lang="pt-B
 <link rel="stylesheet" href="estilo.css">
 <link rel="stylesheet" href="palco.css">
 </head><body><div id="raiz"></div>
-<script src="motor.js"></script><script src="sessao-comum.js"></script><script src="sincronia.js"></script><script src="ponte.js"></script><script src="palco.js"></script></body></html>
+<script src="motor.js"></script><script src="sessao-comum.js"></script><script src="sincronia.js"></script><script src="aovivo.js"></script><script src="ponte.js"></script><script src="palco.js"></script></body></html>
 `);
 console.log('ok: app/tela atualizada a partir de ESCOLHIDA');
